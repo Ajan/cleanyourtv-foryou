@@ -183,7 +183,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private List<ForYou.Item> fyPendingContinue, fyPendingPopular;
     private boolean fyPopularTab;
     private final int[] fyIndex = new int[2];
-    private boolean fyShown, fyDockActive;
+    private boolean fyShown, fyDockActive, fyNoRoom;
+    private float fyTitleDp = 27f, fyMetaDp = 19f;
     private float fyDockTop = -1;
     private int fyDockReturn;
     private android.database.ContentObserver fyObserver;
@@ -2150,7 +2151,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Up from the dock goes to the row only while it is on screen and has cards. */
     private boolean forYouUsable() {
-        if (!forYouOn || !fyShown) return false;
+        if (!forYouOn || !fyShown || fyNoRoom) return false;
         if (currentForYouItems().isEmpty()) {
             if ((fyPopularTab ? fyContinue : fyPopular).isEmpty()) return false;
             selectForYouTab(!fyPopularTab);
@@ -2192,7 +2193,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    /** The row sits just above the dock band; it shows only once it has cards. */
+    /**
+     * The row sits just above the dock band and never above the clock and the top buttons. With rows below the dock
+     * (Launcher settings) the dock rises, so the row steps down until it fits: without the app line, then without
+     * the title, then with smaller cards; only when even that has no room does it stay hidden.
+     */
     private void placeForYou(float dockTopInRoot) {
         if (!forYouOn) return;
         fyDockTop = dockTopInRoot;
@@ -2202,7 +2207,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             forYou.post(() -> { if (fyDockActive) placeForYou(fyDockTop); });
             return;
         }
-        forYou.setY(dockTopInRoot - 50 * density - forYou.getHeight());
+        View header = (View) findViewById(R.id.leftBlock).getParent();
+        Rect hr = new Rect(0, 0, header.getWidth(), header.getHeight());
+        root.offsetDescendantRectToMyCoords(header, hr);
+        float top = hr.bottom + 6 * density;
+        float bottom = dockTopInRoot - 50 * density;
+        float room = (bottom - top) / density;                     // in dp
+        if (fyTitle.getHeight() > 0) fyTitleDp = fyTitle.getHeight() / density;
+        if (fyMeta.getHeight() > 0) fyMetaDp = fyMeta.getHeight() / density;
+        float tabs = 38f;                                          // tabs (34) and the gap under them (4)
+        int card;
+        boolean title, meta;
+        if (room >= tabs + ForYouAdapter.CARD_H_DP + 20 + fyTitleDp + fyMetaDp) { card = ForYouAdapter.CARD_H_DP; title = true; meta = true; }
+        else if (room >= tabs + ForYouAdapter.CARD_H_DP + 20 + fyTitleDp) { card = ForYouAdapter.CARD_H_DP; title = true; meta = false; }
+        else if (room >= tabs + ForYouAdapter.CARD_H_DP + 20) { card = ForYouAdapter.CARD_H_DP; title = false; meta = false; }
+        else if (room >= tabs + 72 + 16) { card = 72; title = false; meta = false; }
+        else {
+            fyNoRoom = true;
+            hideForYou();
+            return;
+        }
+        fyNoRoom = false;
+        fyTitle.setVisibility(title ? View.VISIBLE : View.GONE);
+        fyMeta.setVisibility(meta ? View.VISIBLE : View.GONE);
+        fyAdapter.setCardHeightDp(card);
+        int rowPx = Math.round((card + (card == ForYouAdapter.CARD_H_DP ? 20 : 16)) * density);
+        ViewGroup.LayoutParams lp = fyRow.getLayoutParams();
+        if (lp.height != rowPx) {
+            lp.height = rowPx;
+            fyRow.setLayoutParams(lp);
+        }
+        float height = (tabs + rowPx / density + (title ? fyTitleDp : 0) + (meta ? fyMetaDp : 0)) * density;
+        forYou.setY(Math.max(top, bottom - height));
         forYou.setVisibility(View.VISIBLE);
         if (!fyShown) {
             fyShown = true;

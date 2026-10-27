@@ -25,6 +25,8 @@ final class ForYouAdapter extends RecyclerView.Adapter<ForYouAdapter.Holder> {
     }
 
     static final int CARD_H_DP = 104;
+    /** Card height in dp: CARD_H_DP, or smaller when the row has little room above the dock (MainActivity). */
+    private int cardDp = CARD_H_DP;
     private final List<ForYou.Item> items = new ArrayList<>();
     private final Listener listener;
     private final ArtCache art;
@@ -41,6 +43,12 @@ final class ForYouAdapter extends RecyclerView.Adapter<ForYouAdapter.Holder> {
     void setItems(List<ForYou.Item> list) {
         items.clear();
         items.addAll(list);
+        notifyDataSetChanged();
+    }
+
+    void setCardHeightDp(int dp) {
+        if (dp == cardDp) return;
+        cardDp = dp;
         notifyDataSetChanged();
     }
 
@@ -101,7 +109,7 @@ final class ForYouAdapter extends RecyclerView.Adapter<ForYouAdapter.Holder> {
     @Override
     public void onBindViewHolder(Holder h, int position) {
         ForYou.Item it = items.get(position);
-        int heightPx = Math.round(CARD_H_DP * density);
+        int heightPx = Math.round(cardDp * density);
         float aspect = Math.max(0.6f, Math.min(16f / 9f, it.aspect));
         ViewGroup.LayoutParams lp = h.card.getLayoutParams();
         lp.height = heightPx;

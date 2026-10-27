@@ -11,7 +11,7 @@ haven't been tried.
 
 | Feature | What it does | Turn it off |
 |---|---|---|
-| **For You** row above the dock | Two tabs, **Continue** and **Popular**, filled only from your **dock apps** (see below). OK opens that exact title or episode in its app. The big app name above the dock (`dock_title`) is off to make room. | `for_you` false (and `dock_title` true) in `config.xml` |
+| **For You** row above the dock | Two tabs, **Continue** and **Popular**, filled only from your **dock apps** (see below). OK opens that exact title or episode in its app. The big app name above the dock (`dock_title`) is off to make room. It shows with **0 rows below the dock**; with 1 to 3 rows (Launcher settings) the dock rises and the row hides itself rather than cover the clock and the top buttons. | `for_you` false (and `dock_title` true) in `config.xml` |
 | **Screensaver starts after** | A row in Launcher settings (hold OK on the gear → Launcher settings): 1, 5, 10, 15 or 30 minutes. Google TV has no on-screen setting for this. | remove the row's code, or just don't use it |
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
