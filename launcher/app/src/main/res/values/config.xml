@@ -370,6 +370,9 @@
          publish to Android TV (Watch Next and their own rows); artwork downloaded only while Home is in front.
          Needs READ_TV_LISTINGS (work/build-and-install-my-tv.sh grants it). false: off. -->
     <bool name="for_you">true</bool>
+    <!-- Local change (not upstream): a bell in the top bar while the Play Store has app updates waiting (OK opens
+         them). Needs notification access: variant-install.sh grants it. false: off. -->
+    <bool name="update_bell">true</bool>
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->

@@ -173,6 +173,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int ambientColor = -1;
     // ---- For You (local change, not upstream) ----
     private boolean forYouOn;
+    // ---- update bell (local change, not upstream) ----
+    private TextView btnUpdates;
+    private boolean updateBellOn;
+    private final Runnable updateBellListener = this::refreshUpdateBell;
     private View forYou;
     private TextView fyTabContinue, fyTabPopular, fyTitle, fyMeta;
     private RecyclerView fyRow;
@@ -757,6 +761,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             libraryFromTopBar = true;   // closing it goes back to this button, not to the pill after the last row
         });
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
+        btnUpdates = findViewById(R.id.btnUpdates);
+        updateBellOn = getResources().getBoolean(R.bool.update_bell) && !cfg.topMenu;
+        if (updateBellOn) {
+            btnUpdates.setOnClickListener(v -> openAppUpdates());
+            AppUpdates.setListener(updateBellListener);
+        }
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
@@ -810,13 +820,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 else focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
+            int firstButton = btnUpdates.getVisibility() == View.VISIBLE ? R.id.btnUpdates
+                    : btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
         };
         btnInputs.setOnKeyListener(pillKeys);
+        btnUpdates.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnVpn.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
@@ -979,6 +991,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         restartIdleClock();
         promptsPaused = false;
         forYouResume();
+        refreshUpdateBell();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
         switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
             case REBUILD:
@@ -1240,6 +1253,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        AppUpdates.clearListener(updateBellListener);
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -2360,6 +2374,49 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             startActivity(app);
         } catch (RuntimeException ignored) {
             // the app is gone
+        }
+    }
+
+    /** The bell shows while the Play Store has updates waiting; it leaves focus to the next button when it goes. */
+    private void refreshUpdateBell() {
+        if (!updateBellOn || isDestroyed()) return;
+        List<AppUpdates.Item> waiting = AppUpdates.list();
+        boolean show = !waiting.isEmpty();
+        if (show) {
+            AppUpdates.Item first = waiting.get(0);
+            String what = first.text.isEmpty() ? first.title : first.title + ": " + first.text;
+            btnUpdates.setContentDescription(getString(R.string.updates_waiting) + (what.isEmpty() ? "" : ". " + what));
+        }
+        if (show == (btnUpdates.getVisibility() == View.VISIBLE)) return;
+        boolean hadFocus = btnUpdates.hasFocus();
+        btnUpdates.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (hadFocus && !show) (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+    }
+
+    /** The notification's own action (the Play Store's update list); else the Play Store itself. */
+    private void openAppUpdates() {
+        List<AppUpdates.Item> waiting = AppUpdates.list();
+        if (!waiting.isEmpty() && waiting.get(0).open != null) {
+            try {
+                android.os.Bundle opts = null;
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    opts = android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                            android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle();
+                }
+                waiting.get(0).open.send(this, 0, null, null, null, null, opts);
+                return;
+            } catch (android.app.PendingIntent.CanceledException | RuntimeException ignored) {
+                // fall back to the Play Store
+            }
+        }
+        Intent store = getPackageManager().getLeanbackLaunchIntentForPackage("com.android.vending");
+        if (store == null) store = getPackageManager().getLaunchIntentForPackage("com.android.vending");
+        if (store == null) return;
+        store.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(store);
+        } catch (RuntimeException ignored) {
+            // no Play Store
         }
     }
 

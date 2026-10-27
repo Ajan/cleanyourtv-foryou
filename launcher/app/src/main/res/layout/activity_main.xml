@@ -322,6 +322,15 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
+                <!-- Local change (not upstream): shown only while the Play Store has updates waiting. -->
+                <TextView
+                    android:id="@+id/btnUpdates"
+                    style="@style/TopButtonIcon"
+                    android:visibility="gone"
+                    android:contentDescription="@string/updates_waiting"
+                    android:drawableStart="@drawable/ic_bell"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"

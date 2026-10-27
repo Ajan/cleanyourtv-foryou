@@ -14,4 +14,6 @@ INPUT_KEY_SERVICE=1 launcher/build-and-install.sh
 "$PY" -I tools/tv.py 'pm grant com.gathin.tvhome android.permission.READ_TV_LISTINGS && echo "For You: TV listings granted"'
 # Launcher settings > Screensaver starts after: write Android's screensaver delay.
 "$PY" -I tools/tv.py 'appops set com.gathin.tvhome WRITE_SETTINGS allow; appops write-settings; echo "Screensaver timer: allowed"'
+# Update bell: read the Play Store's "updates available" notifications (nothing else).
+"$PY" -I tools/tv.py 'cmd notification allow_listener com.gathin.tvhome/com.gathin.tvhome.UpdateWatchService && echo "Update bell: notification access allowed"'
 echo "Done. Press Home on the remote."

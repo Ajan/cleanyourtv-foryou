@@ -13,6 +13,7 @@ haven't been tried.
 |---|---|---|
 | **For You** row above the dock | Two tabs, **Continue** and **Popular**, filled only from your **dock apps** (see below). OK opens that exact title or episode in its app. The big app name above the dock (`dock_title`) is off to make room. It shows with **0 rows below the dock**; with 1 to 3 rows (Launcher settings) the dock rises and the row hides itself rather than cover the clock and the top buttons. | `for_you` false (and `dock_title` true) in `config.xml` |
 | **Screensaver starts after** | A row in Launcher settings (hold OK on the gear → Launcher settings): 1, 5, 10, 15 or 30 minutes. Google TV has no on-screen setting for this. | remove the row's code, or just don't use it |
+| **Update bell** in the top bar | A round bell, styled like the other top buttons, appears left of Inputs only while the Play Store has app updates waiting (with the stock launcher disabled nothing else shows them). OK opens them in the Play Store. | `update_bell` false in `config.xml` |
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
 
@@ -37,6 +38,7 @@ The original launcher has no network access and no extra permissions, by design.
 | `INTERNET` | Download the **artwork links the apps themselves publish**, only while Home is on screen; cached on the TV (at most 150 pictures). Nothing else is sent anywhere. | install |
 | `READ_TV_LISTINGS` | Read Watch Next and the apps' rows on the TV | `variant-install.sh` (`pm grant`) |
 | `WRITE_SETTINGS` | The *Screensaver starts after* row writes Android's screensaver delay | `variant-install.sh` (`appops`) |
+| Notification access | The update bell reads **only** the Play Store's "updates available" notifications; every other notification is ignored and nothing is stored | `variant-install.sh` (`cmd notification allow_listener`) |
 
 ## Install
 
@@ -64,12 +66,14 @@ git merge upstream/main          # resolve any conflicts in the launcher files, 
 ```
 
 The changed code is marked `Local change (not upstream)`: `ForYou.java`, `ArtCache.java`, `ForYouAdapter.java`,
+`AppUpdates.java`, `UpdateWatchService.java`, `ic_bell.xml`,
 `item_foryou.xml`, and sections of `MainActivity.java`, `InputKeyService.java` and `LauncherSettingsActivity.java`.
 
 ## Credits and licence
 
 - [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin23 and its contributors: the debloat tools and the
   launcher this is built on. MIT, see [LICENSE](LICENSE).
+- The update bell's idea comes from Talkies and [Matinee](https://github.com/Jarvis322/matinee) (both MIT).
 - The idea of a Continue row from Watch Next and the apps' rows comes from
   [Talkies](https://github.com/rajupp/talkies) (MIT); the code here is written for this launcher.
 - This variant is released under the same MIT licence.

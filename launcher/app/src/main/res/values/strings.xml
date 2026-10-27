@@ -152,6 +152,7 @@
     <!-- Cinematic top shelf (cinematic_home): the line under the focused dock app's name; %1$s is when it was
          last opened, e.g. "5 minutes ago" or "yesterday, 9:40 pm". -->
     <string name="last_opened">Last opened %1$s</string>
+    <string name="updates_waiting" translatable="false">App updates waiting</string>
     <string name="fy_continue" translatable="false">Continue</string>
     <string name="fy_popular" translatable="false">Popular</string>
     <string name="screensaver_after_label" translatable="false">Screensaver starts after</string>
