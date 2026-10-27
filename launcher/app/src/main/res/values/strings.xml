@@ -149,4 +149,8 @@
     <!-- Cinematic top shelf (cinematic_home): the line under the focused dock app's name; %1$s is when it was
          last opened, e.g. "5 minutes ago" or "yesterday, 9:40 pm". -->
     <string name="last_opened">Last opened %1$s</string>
+    <string name="screensaver_after_label" translatable="false">Screensaver starts after</string>
+    <string name="screensaver_after_state" translatable="false">Screensaver starts after: %1$s</string>
+    <string name="screensaver_minutes" translatable="false">%1$d min</string>
+    <string name="screensaver_not_allowed" translatable="false">Not allowed: grant WRITE_SETTINGS over ADB (see README)</string>
 </resources>

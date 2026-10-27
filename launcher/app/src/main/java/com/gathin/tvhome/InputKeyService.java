@@ -2,6 +2,11 @@ package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.content.Intent;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
@@ -31,6 +36,17 @@ public class InputKeyService extends AccessibilityService {
     private boolean consumeVolumeKeys;
     /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough and key_filter. */
     private GamepadPassthrough gamepads;
+    /**
+     * Local change (not upstream): config.xml dream_down_component. While the screensaver runs, Down opens this
+     * activity (Ambient mode's own settings panel), as the stock Google TV home did. Empty: off.
+     */
+    private ComponentName dreamDown;
+    /** The system screensaver is running, from ACTION_DREAMING_STARTED / ACTION_DREAMING_STOPPED. */
+    private volatile boolean dreaming;
+    /** Down was pressed in the screensaver: open dreamDown as soon as the screensaver has stopped. */
+    private volatile boolean openWhenAwake;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private BroadcastReceiver dreamReceiver;
 
     @Override
     protected void onServiceConnected() {
@@ -48,6 +64,21 @@ public class InputKeyService extends AccessibilityService {
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
         holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
         // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
+        String down = getString(R.string.dream_down_component).trim();
+        dreamDown = down.isEmpty() ? null : ComponentName.unflattenFromString(down);
+        if (dreamDown != null && dreamReceiver == null) {
+            dreamReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    dreaming = Intent.ACTION_DREAMING_STARTED.equals(intent.getAction());
+                    if (!dreaming && openWhenAwake) openDreamDown();
+                }
+            };
+            IntentFilter filter = new IntentFilter(Intent.ACTION_DREAMING_STARTED);
+            filter.addAction(Intent.ACTION_DREAMING_STOPPED);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(dreamReceiver, filter, Context.RECEIVER_EXPORTED);
+            else registerReceiver(dreamReceiver, filter);
+        }
         if (config.gamepadPassthrough && config.keyFilter && gamepads == null) {
             gamepads = new GamepadPassthrough(this);
             gamepads.start();
@@ -62,6 +93,17 @@ public class InputKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        if (dreaming && dreamDown != null && event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                // The swallowed key never reaches the screensaver, so it stays on top of anything started now.
+                // Leave it first (Home ends a dream), then open the panel once DREAMING_STOPPED arrives; the
+                // timeout covers a firmware that never sends it.
+                openWhenAwake = true;
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                main.postDelayed(() -> { if (openWhenAwake) openDreamDown(); }, 1500);
+            }
+            return true;
+        }
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, appScancodes.get(event.getScanCode()),
@@ -78,6 +120,17 @@ public class InputKeyService extends AccessibilityService {
         return true;
     }
 
+    private void openDreamDown() {
+        openWhenAwake = false;
+        main.removeCallbacksAndMessages(null);
+        try {
+            startActivity(new Intent().setComponent(dreamDown)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        } catch (ActivityNotFoundException | SecurityException e) {
+            // Gone or not exported: Down did nothing here before either.
+        }
+    }
+
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */
     @Override
     public boolean onUnbind(Intent intent) {
@@ -87,6 +140,13 @@ public class InputKeyService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        if (dreamReceiver != null) {
+            try {
+                unregisterReceiver(dreamReceiver);
+            } catch (IllegalArgumentException ignored) {
+            }
+            dreamReceiver = null;
+        }
         if (gamepads != null) gamepads.stop();
         if (consumeVolumeKeys) VolumeKeys.stop();
         super.onDestroy();

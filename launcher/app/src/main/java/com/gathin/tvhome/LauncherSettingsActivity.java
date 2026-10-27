@@ -32,6 +32,9 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView advancedChoice;
     private TextView followThemeChoice;
     private TextView openOnStartChoice;
+    /** Local change: Android's screensaver delay (Settings.System.SCREEN_OFF_TIMEOUT), in minutes. */
+    private static final int[] SCREENSAVER_MINUTES = {1, 5, 10, 15, 30};
+    private TextView screensaverChoice;
     private int columns;
     private int rowsBelowDock;
     private int dockOpacity;
@@ -128,6 +131,8 @@ public final class LauncherSettingsActivity extends Activity {
             openOnStartChoice.setVisibility(View.VISIBLE);
             openOnStartChoice.setOnClickListener(v -> showOpenOnStartPicker());
         }
+        screensaverChoice = findViewById(R.id.screensaverChoice);
+        screensaverChoice.setOnClickListener(v -> showScreensaverPicker());
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
@@ -232,6 +237,47 @@ public final class LauncherSettingsActivity extends Activity {
                 .show();
     }
 
+    /** Current screensaver delay in ms, or -1 when it cannot be read. */
+    private int screensaverMs() {
+        return Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, -1);
+    }
+
+    /** 1, 5, 10, 15 or 30 minutes; written straight to Android's setting, so it applies at once. */
+    private void showScreensaverPicker() {
+        String[] labels = new String[SCREENSAVER_MINUTES.length];
+        int current = screensaverMs();
+        int checked = -1;
+        for (int i = 0; i < SCREENSAVER_MINUTES.length; i++) {
+            labels[i] = getString(R.string.screensaver_minutes, SCREENSAVER_MINUTES[i]);
+            if (current == SCREENSAVER_MINUTES[i] * 60_000) checked = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.screensaver_after_label)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    boolean ok = false;
+                    if (Settings.System.canWrite(this)) {
+                        try {
+                            ok = Settings.System.putInt(getContentResolver(),
+                                    Settings.System.SCREEN_OFF_TIMEOUT, SCREENSAVER_MINUTES[which] * 60_000);
+                        } catch (SecurityException | IllegalArgumentException e) {
+                            ok = false;
+                        }
+                    }
+                    if (!ok) Toast.makeText(this, R.string.screensaver_not_allowed, Toast.LENGTH_LONG).show();
+                    refresh();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private String screensaverLabel() {
+        int ms = screensaverMs();
+        if (ms <= 0) return "?";
+        int minutes = Math.max(1, Math.round(ms / 60_000f));
+        return getString(R.string.screensaver_minutes, minutes);
+    }
+
     /** The picked app's name, its package when it is gone, or Off. */
     private String openOnStartLabel() {
         String pkg = choices.getString(OpenOnStart.KEY, "");
@@ -291,6 +337,7 @@ public final class LauncherSettingsActivity extends Activity {
                         : wallpaperCurrent != null ? wallpaperCurrent
                         : getString(R.string.wallpaper_theme_default)));
         openOnStartChoice.setText(getString(R.string.open_on_start_state, openOnStartLabel()));
+        screensaverChoice.setText(getString(R.string.screensaver_after_state, screensaverLabel()));
         followThemeChoice.setSelected(!hasOnTvChoices());
     }
 
