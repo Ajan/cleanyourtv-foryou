@@ -75,6 +75,7 @@ import androidx.dynamicanimation.animation.FloatPropertyCompat;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
@@ -164,6 +165,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
     private int glassAccent;
     private int ambientColor = -1;
+    // ---- For You (local change, not upstream) ----
+    private boolean forYouOn;
+    private View forYou;
+    private TextView fyTabContinue, fyTabPopular, fyTitle, fyMeta;
+    private RecyclerView fyRow;
+    private ForYouAdapter fyAdapter;
+    private ArtCache fyArt;
+    private final java.util.concurrent.ExecutorService fyLoader = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private List<ForYou.Item> fyContinue = new ArrayList<>(), fyPopular = new ArrayList<>();
+    private List<ForYou.Item> fyPendingContinue, fyPendingPopular;
+    private boolean fyPopularTab;
+    private final int[] fyIndex = new int[2];
+    private boolean fyShown, fyDockActive;
+    private float fyDockTop = -1;
+    private int fyDockReturn;
+    private android.database.ContentObserver fyObserver;
+    private final Runnable fyReload = this::loadForYou;
     private ValueAnimator ambientAnimator;
     private boolean heroShown;
     private boolean animations;
@@ -585,6 +603,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
         grid.setAdapter(adapter);
+        setupForYou();
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -765,7 +784,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 // Back to the dock tile Up came from, not wherever the focus finder lands.
-                focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
+                if (forYouUsable()) currentTab().requestFocus();
+                else focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
             int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
@@ -930,6 +950,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         restartIdleClock();
         promptsPaused = false;
+        forYouResume();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
         switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
             case REBUILD:
@@ -1127,6 +1148,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        forYouPause();
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
@@ -1162,6 +1184,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
+        if (fyArt != null && level >= TRIM_MEMORY_UI_HIDDEN) fyArt.trim();
         // RUNNING_LOW and CRITICAL also arrive while Home is visible when an accessibility service keeps the
         // process in the foreground; never blank the screen the owner is looking at.
         if (!MemoryTrimPolicy.shouldRelease(level, started)) return;
@@ -1660,10 +1683,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 else grid.smoothScrollBy(0, dy);
             }
             showHero(position, scroll ? r.top - dy : r.top);
+            fyDockActive = true;
+            placeForYou(scroll ? r.top - dy : r.top);
         } else {
             // Below the dock (or in a plain grid) the glow follows the tile without the big name; letting it
             // fade out left the grid on plain black.
             showGlowOnly(position);
+            fyDockActive = false;
+            hideForYou();
             // Scroll just enough so the whole glass (not only the tile) is visible.
             revealRect.set(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
             grid.requestChildRectangleOnScreen(item, revealRect, reducedMotion);
@@ -1984,6 +2011,299 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }).start();
     }
 
+    // ---- For You (local change, not upstream) ----------------------------------------------------
+
+    private void setupForYou() {
+        forYou = findViewById(R.id.forYou);
+        forYouOn = getResources().getBoolean(R.bool.for_you) && dockRow && !singleRow;
+        if (!forYouOn) {
+            forYou.setVisibility(View.GONE);
+            return;
+        }
+        fyTabContinue = findViewById(R.id.fyTabContinue);
+        fyTabPopular = findViewById(R.id.fyTabPopular);
+        fyTitle = findViewById(R.id.fyTitle);
+        fyMeta = findViewById(R.id.fyMeta);
+        fyRow = findViewById(R.id.fyRow);
+        fyArt = new ArtCache(this);
+        fyAdapter = new ForYouAdapter(new ForYouAdapter.Listener() {
+            @Override
+            public void onCardFocused(int position, ForYou.Item item, View card) {
+                fyIndex[fyPopularTab ? 1 : 0] = position;
+                showForYouText(item);
+                hideGlass();
+                showGlowColor(colorForPackage(item.pkg));
+            }
+
+            @Override
+            public void onCardClicked(ForYou.Item item) {
+                openForYou(item);
+            }
+
+            @Override
+            public boolean onCardKey(int position, int keyCode) {
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_DPAD_UP:
+                        currentTab().requestFocus();
+                        return true;
+                    case KeyEvent.KEYCODE_DPAD_DOWN:
+                        focusTile(fyDockReturn);
+                        return true;
+                    case KeyEvent.KEYCODE_DPAD_LEFT:
+                        return position == 0;
+                    case KeyEvent.KEYCODE_DPAD_RIGHT:
+                        return position >= fyAdapter.getItemCount() - 1;
+                    default:
+                        return false;
+                }
+            }
+
+            @Override
+            public int colorFor(String pkg) {
+                return colorForPackage(pkg);
+            }
+        }, fyArt, density, animations && !reducedMotion);
+        fyRow.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        fyRow.setItemAnimator(null);
+        fyRow.setAdapter(fyAdapter);
+        View.OnKeyListener tabKeys = (v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    focusForYouCard();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    if (v == fyTabPopular && fyTabContinue.getVisibility() == View.VISIBLE) fyTabContinue.requestFocus();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (v == fyTabContinue && fyTabPopular.getVisibility() == View.VISIBLE) fyTabPopular.requestFocus();
+                    return true;
+                default:
+                    return false;
+            }
+        };
+        for (TextView tab : new TextView[]{fyTabContinue, fyTabPopular}) {
+            tab.setOnKeyListener(tabKeys);
+            tab.setOnClickListener(v -> focusForYouCard());
+            tab.setOnFocusChangeListener((v, focused) -> {
+                if (!focused) return;
+                hideGlass();
+                selectForYouTab(v == fyTabPopular);
+            });
+        }
+        fyTabContinue.setSelected(true);
+    }
+
+    private TextView currentTab() {
+        return fyPopularTab ? fyTabPopular : fyTabContinue;
+    }
+
+    private List<ForYou.Item> currentForYouItems() {
+        return fyPopularTab ? fyPopular : fyContinue;
+    }
+
+    /** Up from the dock goes to the row only while it is on screen and has cards. */
+    private boolean forYouUsable() {
+        if (!forYouOn || !fyShown) return false;
+        if (currentForYouItems().isEmpty()) {
+            if ((fyPopularTab ? fyContinue : fyPopular).isEmpty()) return false;
+            selectForYouTab(!fyPopularTab);
+        }
+        return true;
+    }
+
+    private void selectForYouTab(boolean popular) {
+        boolean changed = popular != fyPopularTab || fyAdapter.getItemCount() != currentForYouItems().size();
+        fyPopularTab = popular;
+        fyTabContinue.setSelected(!popular);
+        fyTabPopular.setSelected(popular);
+        if (!changed) return;
+        List<ForYou.Item> items = currentForYouItems();
+        fyAdapter.setItems(items);
+        int i = Math.max(0, Math.min(fyIndex[popular ? 1 : 0], items.size() - 1));
+        fyRow.scrollToPosition(i);
+        showForYouText(items.isEmpty() ? null : items.get(i));
+    }
+
+    private void showForYouText(ForYou.Item item) {
+        fyTitle.setText(item == null ? "" : item.title);
+        fyMeta.setText(item == null ? "" : item.meta);
+    }
+
+    private void focusForYouCard() {
+        List<ForYou.Item> items = currentForYouItems();
+        if (items.isEmpty()) return;
+        int i = Math.max(0, Math.min(fyIndex[fyPopularTab ? 1 : 0], items.size() - 1));
+        RecyclerView.ViewHolder vh = fyRow.findViewHolderForAdapterPosition(i);
+        if (vh != null) {
+            vh.itemView.findViewById(R.id.fyCard).requestFocus();
+            return;
+        }
+        fyRow.scrollToPosition(i);
+        fyRow.post(() -> {
+            RecyclerView.ViewHolder later = fyRow.findViewHolderForAdapterPosition(i);
+            if (later != null) later.itemView.findViewById(R.id.fyCard).requestFocus();
+        });
+    }
+
+    /** The row sits just above the dock band; it shows only once it has cards. */
+    private void placeForYou(float dockTopInRoot) {
+        if (!forYouOn) return;
+        fyDockTop = dockTopInRoot;
+        if (fyContinue.isEmpty() && fyPopular.isEmpty()) return;
+        if (forYou.getHeight() == 0) {
+            forYou.setVisibility(View.VISIBLE);
+            forYou.post(() -> { if (fyDockActive) placeForYou(fyDockTop); });
+            return;
+        }
+        forYou.setY(dockTopInRoot - 50 * density - forYou.getHeight());
+        forYou.setVisibility(View.VISIBLE);
+        if (!fyShown) {
+            fyShown = true;
+            if (animations && !reducedMotion) forYou.animate().alpha(1f).setDuration(220).start();
+            else forYou.setAlpha(1f);
+        }
+    }
+
+    private void hideForYou() {
+        if (!forYouOn || !fyShown) return;
+        fyShown = false;
+        forYou.animate().cancel();
+        if (animations && !reducedMotion) {
+            forYou.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+                if (!fyShown) forYou.setVisibility(View.INVISIBLE);
+            }).start();
+        } else {
+            forYou.setAlpha(0f);
+            forYou.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    private void loadForYou() {
+        if (!forYouOn) return;
+        List<String> dock = new ArrayList<>(dockApps);
+        fyLoader.execute(() -> {
+            List<ForYou.Item> c = ForYou.loadContinue(this, dock);
+            List<ForYou.Item> p = ForYou.loadPopular(this, dock);
+            runOnUiThread(() -> applyForYou(c, p));
+        });
+    }
+
+    private void applyForYou(List<ForYou.Item> c, List<ForYou.Item> p) {
+        if (isDestroyed()) return;
+        if (fyRow.hasFocus()) {   // never pull the cards from under the focus; apply when it leaves the row
+            fyPendingContinue = c;
+            fyPendingPopular = p;
+            return;
+        }
+        fyContinue = c;
+        fyPopular = p;
+        fyTabContinue.setVisibility(c.isEmpty() ? View.GONE : View.VISIBLE);
+        fyTabPopular.setVisibility(p.isEmpty() ? View.GONE : View.VISIBLE);
+        boolean popular = c.isEmpty();   // Home opens on Continue whenever it has something
+        fyAdapter.setItems(java.util.Collections.emptyList());
+        selectForYouTab(popular);
+        if (c.isEmpty() && p.isEmpty()) hideForYou();
+        else if (fyDockActive && fyDockTop >= 0) placeForYou(fyDockTop);
+    }
+
+    private void forYouResume() {
+        if (!forYouOn) return;
+        fyArt.setOnline(true);
+        if (fyObserver == null) {
+            fyObserver = new android.database.ContentObserver(handler) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    handler.removeCallbacks(fyReload);
+                    handler.postDelayed(fyReload, 1500);
+                }
+            };
+        }
+        try {
+            getContentResolver().registerContentObserver(TvContract.WatchNextPrograms.CONTENT_URI, true, fyObserver);
+        } catch (RuntimeException ignored) {
+            // no TV provider: Continue only refreshes on resume
+        }
+        if (fyPendingContinue != null) {
+            List<ForYou.Item> c = fyPendingContinue, p = fyPendingPopular;
+            fyPendingContinue = fyPendingPopular = null;
+            applyForYou(c, p);
+        }
+        loadForYou();
+    }
+
+    private void forYouPause() {
+        if (!forYouOn) return;
+        fyArt.setOnline(false);
+        handler.removeCallbacks(fyReload);
+        if (fyObserver != null) getContentResolver().unregisterContentObserver(fyObserver);
+    }
+
+    private int colorForPackage(String pkg) {
+        for (int i = 0; i < adapter.appCount(); i++) {
+            if (pkg.equals(adapter.packageAt(i))) return adapter.ambientColorAt(i);
+        }
+        return 0xFF3A3A40;
+    }
+
+    /** The entry's own link opens that title in its app; a link to another app, or none, opens the app itself. */
+    private void openForYou(ForYou.Item it) {
+        Intent intent = null;
+        try {
+            if (it.intentUri != null && !it.intentUri.isEmpty()) intent = Intent.parseUri(it.intentUri, Intent.URI_INTENT_SCHEME);
+        } catch (java.net.URISyntaxException ignored) {
+            intent = null;
+        }
+        if (intent != null) {
+            intent.setSelector(null);
+            android.content.ComponentName cn = intent.getComponent();
+            if (cn != null && !it.pkg.equals(cn.getPackageName())) intent = null;
+            else if (cn == null && intent.getPackage() != null && !it.pkg.equals(intent.getPackage())) intent = null;
+            else if (cn == null && intent.getPackage() == null) intent.setPackage(it.pkg);
+        }
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                startActivity(intent);
+                return;
+            } catch (RuntimeException ignored) {
+                // fall back to the app
+            }
+        }
+        Intent app = getPackageManager().getLeanbackLaunchIntentForPackage(it.pkg);
+        if (app == null) app = getPackageManager().getLaunchIntentForPackage(it.pkg);
+        if (app == null) return;
+        app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(app);
+        } catch (RuntimeException ignored) {
+            // the app is gone
+        }
+    }
+
+    /** The dock's glow, in a For You card's app colour. */
+    private void showGlowColor(int color) {
+        stopAmbientAnimation();
+        ambient.animate().cancel();
+        if (!ambientGlow) return;
+        if (!animations || reducedMotion) {
+            setAmbient(color);
+            ambient.setAlpha(1f);
+            return;
+        }
+        if (color == ambientColor && ambient.getBackground() != null) {
+            ambient.animate().alpha(1f).setDuration(300).start();
+            return;
+        }
+        ambient.animate().alpha(0.35f).setDuration(ambient.getAlpha() > 0.35f ? 200 : 0).withEndAction(() -> {
+            setAmbient(color);
+            ambient.animate().alpha(1f).setDuration(500).start();
+        }).start();
+    }
+
     private void hideHero() {
         if (!heroShown) return;
         stopAmbientAnimation();
@@ -2232,7 +2552,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
+            if (position < COLUMNS) {
+                if (forYouUsable()) {
+                    fyDockReturn = position;
+                    focusForYouCard();
+                    return true;
+                }
+                return false;          // dock row: let focus move to the top bar
+            }
             target = position - COLUMNS;
         } else {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream): one For You card. Size is set in ForYouAdapter. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="match_parent"
+    android:paddingStart="7dp"
+    android:paddingEnd="7dp"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <FrameLayout
+        android:id="@+id/fyCard"
+        android:layout_width="185dp"
+        android:layout_height="104dp"
+        android:layout_gravity="center_vertical"
+        android:focusable="true"
+        android:clickable="true"
+        android:foreground="@drawable/fy_card_ring">
+
+        <ImageView
+            android:id="@+id/fyArt"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/fyLabel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="8dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="@string/font_medium" />
+
+        <View
+            android:id="@+id/fyTrack"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:background="#55FFFFFF"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/fyProgress"
+            android:layout_width="0dp"
+            android:layout_height="4dp"
+            android:layout_gravity="bottom"
+            android:background="#FFFFFFFF"
+            android:visibility="gone" />
+    </FrameLayout>
+</FrameLayout>

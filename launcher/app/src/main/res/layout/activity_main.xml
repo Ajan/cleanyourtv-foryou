@@ -386,6 +386,92 @@
         </FrameLayout>
     </LinearLayout>
 
+    <!-- Local change (not upstream): For You, placed above the dock in code (MainActivity.placeForYou). -->
+    <LinearLayout
+        android:id="@+id/forYou"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="62dp"
+        android:paddingEnd="56dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:visibility="invisible"
+        android:alpha="0">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/fyTabContinue"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:gravity="center"
+                android:background="@drawable/fy_tab_bg"
+                android:textColor="@color/fy_tab_text"
+                android:textSize="15sp"
+                android:fontFamily="@string/font_medium"
+                android:focusable="true"
+                android:clickable="true"
+                android:text="@string/fy_continue" />
+
+            <TextView
+                android:id="@+id/fyTabPopular"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="8dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:gravity="center"
+                android:background="@drawable/fy_tab_bg"
+                android:textColor="@color/fy_tab_text"
+                android:textSize="15sp"
+                android:fontFamily="@string/font_medium"
+                android:focusable="true"
+                android:clickable="true"
+                android:text="@string/fy_popular" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/fyRow"
+            android:layout_width="match_parent"
+            android:layout_height="124dp"
+            android:layout_marginTop="4dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:paddingEnd="40dp"
+            android:overScrollMode="never"
+            android:scrollbars="none"
+            android:descendantFocusability="afterDescendants" />
+
+        <TextView
+            android:id="@+id/fyTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp"
+            android:fontFamily="@string/font_medium" />
+
+        <TextView
+            android:id="@+id/fyMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#B3FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@string/font_light" />
+    </LinearLayout>
+
     <!-- The single floating glass highlight that springs between tiles. -->
     <com.gathin.tvhome.GlassView
         android:id="@+id/glass"

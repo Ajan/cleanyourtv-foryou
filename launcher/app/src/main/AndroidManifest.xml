@@ -7,6 +7,11 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
+    <!-- Local change: the For You row reads Watch Next and the apps' rows, and downloads their artwork. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <!-- Local change: lets Launcher settings set the screensaver delay (granted with appops). -->
 
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
