@@ -73,7 +73,7 @@ The changed code is marked `Local change (not upstream)`: `ForYou.java`, `ArtCac
 
 - [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin23 and its contributors: the debloat tools and the
   launcher this is built on. MIT, see [LICENSE](LICENSE).
-- The update bell's idea comes from Talkies and [Matinee](https://github.com/Jarvis322/matinee) (both MIT).
+- The update bell's idea comes from [Talkies](https://github.com/rajupp/talkies) and [Matinee](https://github.com/Jarvis322/matinee) (both MIT).
 - The idea of a Continue row from Watch Next and the apps' rows comes from
   [Talkies](https://github.com/rajupp/talkies) (MIT); the code here is written for this launcher.
 - This variant is released under the same MIT licence.
