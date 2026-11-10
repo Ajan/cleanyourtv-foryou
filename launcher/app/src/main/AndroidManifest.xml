@@ -253,6 +253,11 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <!-- Local change (not upstream): ends a 30-minute Private DNS pause from the shield's menu (DnsShield). -->
+        <receiver
+            android:name=".DnsResume"
+            android:exported="false" />
+
         <receiver
             android:name=".GuardConfig"
             android:exported="true"

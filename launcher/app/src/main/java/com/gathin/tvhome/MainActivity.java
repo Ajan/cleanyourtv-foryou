@@ -891,6 +891,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (getResources().getBoolean(R.bool.dns_shield) && !cfg.topMenu && DnsShield.supported()) {
             dnsShield = new DnsShield(this, findViewById(R.id.btnDns));
+            dnsShield.menuOpener = this::showDnsMenu;
             dnsShield.start();
         }
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
@@ -962,6 +963,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnInputs.setOnKeyListener(pillKeys);
         btnUpdates.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
+        findViewById(R.id.btnDns).setOnKeyListener(pillKeys);   // Local change: focusable with WRITE_SECURE_SETTINGS
         btnVpn.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
         btnReorder.setOnKeyListener(pillKeys);
@@ -3634,7 +3636,65 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void openNetworkPill() {
         Intent i = vpnPill ? null : vpnAppIntent();
-        open(i != null ? i : systemIntent(Settings.ACTION_WIFI_SETTINGS));
+        if (i != null) open(i);
+        else showWifiMenu();   // Local change (not upstream): a small menu instead of going straight to Settings
+    }
+
+    /**
+     * Local change (not upstream): the Wi-Fi pill's menu, in the Inputs menu's glass dropdown. Without Location on,
+     * Android hides the network's name and the nearby list from apps, and since Android 10 no app may switch
+     * networks; so it shows what may be read (connected, band, signal, internet) and opens Wi-Fi settings.
+     */
+    private void showWifiMenu() {
+        if (openPopup != null) return;
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        TextView header = new TextView(this);
+        header.setText(R.string.wifi);
+        header.setTextColor(0x99FFFFFF);
+        header.setTextSize(13);
+        int pad = (int) (12 * density);
+        header.setPadding(pad, (int) (8 * density), pad, (int) (6 * density));
+        ((LinearLayout) panel).addView(header, 0);
+        PopupWindow popup = glassPopup(panel, (int) (260 * density));
+        Intent wifiSettings = systemIntent(Settings.ACTION_WIFI_SETTINGS);
+        addSettingsMenuRow(rows, popup, R.string.wifi_menu_connected, () -> open(wifiSettings));
+        ((TextView) rows.getChildAt(0).findViewById(R.id.title)).setText(wifiStatusLine());
+        addSettingsMenuRow(rows, popup, R.string.wifi_menu_settings, () -> open(wifiSettings));
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max((int) (260 * density), panel.getMeasuredWidth()));
+        dropIn(popup, panel, btnWifi, Gravity.END);
+        rows.getChildAt(rows.getChildCount() - 1).requestFocus();
+    }
+
+    /** "Connected · 5 GHz · Good signal", "· no internet" when Android's check fails, or "Not connected". */
+    private String wifiStatusLine() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        Network n = cm == null ? null : cm.getActiveNetwork();
+        NetworkCapabilities caps = n == null ? null : cm.getNetworkCapabilities(n);
+        if (caps == null) return getString(R.string.wifi_menu_not_connected);
+        StringBuilder line = new StringBuilder();
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
+            line.append(getString(R.string.wifi_menu_ethernet));
+        } else {
+            line.append(getString(R.string.wifi_menu_connected));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && caps.getTransportInfo() instanceof android.net.wifi.WifiInfo) {
+                android.net.wifi.WifiInfo info = (android.net.wifi.WifiInfo) caps.getTransportInfo();
+                int mhz = info.getFrequency();
+                if (mhz > 0) line.append(" · ").append(mhz >= 5900 ? "6 GHz" : mhz >= 4900 ? "5 GHz" : "2.4 GHz");
+                int rssi = info.getRssi();
+                if (rssi > -127) {
+                    int sig = rssi >= -55 ? R.string.wifi_menu_signal_excellent : rssi >= -67 ? R.string.wifi_menu_signal_good
+                            : rssi >= -75 ? R.string.wifi_menu_signal_fair : R.string.wifi_menu_signal_weak;
+                    line.append(" · ").append(getString(sig));
+                }
+            }
+        }
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+            line.append(" · ").append(getString(R.string.wifi_menu_no_internet));
+        }
+        return line.toString();
     }
 
     /** vpn_app's launch intent, or null when none is set or it is not installed. */
@@ -4370,6 +4430,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
         }
+        rows.getChildAt(0).requestFocus();
+    }
+
+    /** Local change: the Private DNS shield's menu, in the Inputs menu's glass dropdown, hanging under the shield. */
+    private void showDnsMenu() {
+        if (dnsShield == null || openPopup != null) return;
+        String title = dnsShield.menuTitle();
+        if (title == null) return;
+        View anchor = findViewById(R.id.btnDns);
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        TextView header = new TextView(this);
+        header.setText(title);
+        header.setTextColor(0x99FFFFFF);
+        header.setTextSize(13);
+        header.setSingleLine(true);
+        int pad = (int) (12 * density);
+        header.setPadding(pad, (int) (8 * density), pad, (int) (6 * density));
+        ((LinearLayout) panel).addView(header, 0);
+        PopupWindow popup = glassPopup(panel, (int) (220 * density));
+        for (int item : dnsShield.menuItems()) addSettingsMenuRow(rows, popup, item, () -> dnsShield.choose(item));
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max((int) (220 * density), panel.getMeasuredWidth()));
+        dropIn(popup, panel, anchor, Gravity.END);
         rows.getChildAt(0).requestFocus();
     }
 

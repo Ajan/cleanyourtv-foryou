@@ -157,6 +157,22 @@
     <string name="dns_shield_ok" translatable="false">Private DNS: connected</string>
     <string name="dns_shield_checking" translatable="false">Private DNS: connecting</string>
     <string name="dns_shield_failing" translatable="false">Private DNS: not answering</string>
+    <string name="dns_shield_off" translatable="false">Private DNS: off</string>
+    <string name="dns_menu_title" translatable="false">Private DNS: %1$s</string>
+    <string name="dns_menu_title_off" translatable="false">Private DNS off (%1$s saved)</string>
+    <string name="dns_paused_until" translatable="false">Paused until %1$s</string>
+    <string name="wifi_menu_settings" translatable="false">Wi-Fi Settings…</string>
+    <string name="wifi_menu_connected" translatable="false">Connected</string>
+    <string name="wifi_menu_ethernet" translatable="false">Ethernet connected</string>
+    <string name="wifi_menu_not_connected" translatable="false">Not connected</string>
+    <string name="wifi_menu_no_internet" translatable="false">no internet</string>
+    <string name="wifi_menu_signal_excellent" translatable="false">Excellent signal</string>
+    <string name="wifi_menu_signal_good" translatable="false">Good signal</string>
+    <string name="wifi_menu_signal_fair" translatable="false">Fair signal</string>
+    <string name="wifi_menu_signal_weak" translatable="false">Weak signal</string>
+    <string name="dns_pause" translatable="false">Pause for 30 minutes</string>
+    <string name="dns_turn_off" translatable="false">Turn off</string>
+    <string name="dns_turn_on" translatable="false">Turn on</string>
     <string name="fy_continue" translatable="false">Continue</string>
     <string name="fy_popular" translatable="false">Popular</string>
     <string name="screensaver_after_label" translatable="false">Screensaver starts after</string>

@@ -16,4 +16,10 @@ INPUT_KEY_SERVICE=1 launcher/build-and-install.sh
 "$PY" -I tools/tv.py 'appops set com.gathin.tvhome WRITE_SETTINGS allow; appops write-settings; echo "Screensaver timer: allowed"'
 # Update bell: read the Play Store's "updates available" notifications (nothing else).
 "$PY" -I tools/tv.py 'cmd notification allow_listener com.gathin.tvhome/com.gathin.tvhome.UpdateWatchService && echo "Update bell: notification access allowed"'
+# Private DNS shield menu (pause 30 min / off / on), only with DNS_SWITCH=1: WRITE_SECURE_SETTINGS can change ANY
+# secure or global setting, so it is opt-in. Without it the shield is a status light. Undo:
+#   tools/tv.py 'pm revoke com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS'
+if [ "${DNS_SWITCH:-0}" = 1 ]; then
+  "$PY" -I tools/tv.py 'pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS && echo "DNS switch: WRITE_SECURE_SETTINGS granted"'
+fi
 echo "Done. Press Home on the remote."

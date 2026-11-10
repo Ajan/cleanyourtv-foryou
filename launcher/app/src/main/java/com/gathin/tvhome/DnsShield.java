@@ -1,6 +1,11 @@
 package com.gathin.tvhome;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.provider.Settings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -33,7 +38,9 @@ import java.util.concurrent.Executor;
  * The shield asks one real question - does a fresh lookup answer? - with the resolver's cache skipped, so an
  * answer means the resolver itself replied. Green: lookups work. Amber: still waiting (just woken). Red: no answer
  * for {@link #RED_AFTER_MS}. Hidden when Private DNS is off or automatic, or below Android 10 (no DnsResolver).
- * Status only: it takes no focus.
+ * Status only, unless the launcher holds WRITE_SECURE_SETTINGS: then focus can land on it and OK opens a menu to
+ * pause Private DNS for 30 minutes (mode opportunistic; DnsResume puts hostname back), turn it off, or turn it on.
+ * While it is paused or off with a resolver name still saved, the shield stays, grey, so it can be turned back on.
  */
 final class DnsShield {
     static final String PROBE_HOST = "www.youtube.com";
@@ -42,7 +49,12 @@ final class DnsShield {
     static final long FRESH_MS = 60_000;
     static final long SLOW_MS = 1_500;
 
-    enum State { HIDDEN, CHECKING, OK, FAILING }
+    enum State { HIDDEN, CHECKING, OK, FAILING, OFF }
+
+    static final String MODE = "private_dns_mode", SPECIFIER = "private_dns_specifier";
+    static final String PREFS = "dns_shield", PAUSED_UNTIL = "paused_until";
+    static final long PAUSE_MS = 30 * 60_000L;
+    private static final int GREY = 0xFF8E8E93;
 
     private static final int GREEN = 0xFF34C759;
     private static final int AMBER = 0xFFFFB020;
@@ -88,8 +100,101 @@ final class DnsShield {
         this.context = context;
         this.view = view;
         this.cm = context.getSystemService(ConnectivityManager.class);
-        view.setFocusable(false);
+        applySwitchable();
         view.setVisibility(View.GONE);
+    }
+
+    /** Selectable (OK opens the menu) only while the permission is held; re-checked each time Home comes back,
+     *  since the install grants it after Home has already started. */
+    private void applySwitchable() {
+        boolean can = canSwitch(context);
+        view.setFocusable(can);
+        view.setOnClickListener(can ? v -> { if (menuOpener != null) menuOpener.run(); } : null);
+        if (!can && view.hasFocus()) view.clearFocus();
+    }
+
+    /** Whether this launcher may switch Private DNS (WRITE_SECURE_SETTINGS, granted over ADB). */
+    static boolean canSwitch(Context c) {
+        return c.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** The saved resolver name, or null: what "on" returns to. */
+    @Nullable
+    private String specifier() {
+        String s = Settings.Global.getString(context.getContentResolver(), SPECIFIER);
+        return s == null || s.trim().isEmpty() ? null : s.trim();
+    }
+
+    private static long pausedUntil(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(PAUSED_UNTIL, 0);
+    }
+
+    /** Strict mode back on with the saved name, and any pause and its alarm forgotten. */
+    static void turnOn(Context c) {
+        Settings.Global.putString(c.getContentResolver(), MODE, "hostname");
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(PAUSED_UNTIL).apply();
+        AlarmManager am = c.getSystemService(AlarmManager.class);
+        if (am != null) am.cancel(resumeIntent(c));
+    }
+
+    private static PendingIntent resumeIntent(Context c) {
+        return PendingIntent.getBroadcast(c, 0, new Intent(c, DnsResume.class),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private void turnOff(long forMs) {
+        Settings.Global.putString(context.getContentResolver(), MODE, "opportunistic");
+        SharedPreferences.Editor e = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
+        AlarmManager am = context.getSystemService(AlarmManager.class);
+        if (forMs > 0) {
+            long until = System.currentTimeMillis() + forMs;
+            e.putLong(PAUSED_UNTIL, until);
+            if (am != null) am.set(AlarmManager.RTC_WAKEUP, until, resumeIntent(context));
+        } else {
+            e.remove(PAUSED_UNTIL);
+            if (am != null) am.cancel(resumeIntent(context));
+        }
+        e.apply();
+    }
+
+    /** Home draws the menu (the Inputs menu's glass dropdown); set by MainActivity. */
+    @Nullable Runnable menuOpener;
+
+    /** The menu's header: the saved resolver name, e.g. "Private DNS: dns.adguard-dns.com"; null: no menu. */
+    @Nullable
+    String menuTitle() {
+        String name = specifier();
+        if (name == null) return null;
+        boolean strict = "hostname".equals(Settings.Global.getString(context.getContentResolver(), MODE));
+        long until = pausedUntil(context);
+        if (!strict && until > System.currentTimeMillis()) {
+            // In the TV's own 12- or 24-hour style: "Paused until 11:51 PM".
+            String at = android.text.format.DateFormat.getTimeFormat(context).format(new java.util.Date(until));
+            return context.getString(R.string.dns_paused_until, at);
+        }
+        return context.getString(strict ? R.string.dns_menu_title : R.string.dns_menu_title_off, name);
+    }
+
+    /** The menu's rows, as string ids, for the current state: on, paused, or off. */
+    int[] menuItems() {
+        boolean strict = "hostname".equals(Settings.Global.getString(context.getContentResolver(), MODE));
+        boolean paused = !strict && pausedUntil(context) > System.currentTimeMillis();
+        return strict ? new int[]{R.string.dns_pause, R.string.dns_turn_off}
+                : paused ? new int[]{R.string.dns_turn_on, R.string.dns_turn_off}
+                : new int[]{R.string.dns_turn_on};
+    }
+
+    /** Runs the row the user picked (one of menuItems()). */
+    void choose(int item) {
+        try {
+            if (item == R.string.dns_pause) turnOff(PAUSE_MS);
+            else if (item == R.string.dns_turn_off) turnOff(0);
+            else turnOn(context);
+        } catch (SecurityException e) {
+            return;   // the permission was taken away since: leave everything as it is
+        }
+        restart(true);
     }
 
     static boolean supported() {
@@ -125,6 +230,7 @@ final class DnsShield {
     /** Home is in front: check unless a recent answer still stands. */
     void resume() {
         resumed = true;
+        applySwitchable();
         if (state == State.OK && SystemClock.elapsedRealtime() - lastOk < FRESH_MS) return;
         check();
     }
@@ -154,9 +260,14 @@ final class DnsShield {
         Network network = cm.getActiveNetwork();
         LinkProperties lp = network == null ? null : cm.getLinkProperties(network);
         if (lp == null || lp.getPrivateDnsServerName() == null) {
-            // Off, automatic or no network: nothing strict to watch.
+            // Off, automatic or no network: nothing strict to watch. A pause whose alarm was missed ends here.
             failingSince = 0;
-            show(State.HIDDEN);
+            long until = pausedUntil(context);
+            if (until > 0 && until <= System.currentTimeMillis() && canSwitch(context) && specifier() != null) {
+                turnOn(context);
+                return;   // the network callback brings the next check
+            }
+            show(lp != null && canSwitch(context) && specifier() != null ? State.OFF : State.HIDDEN);
             return;
         }
         if (state == State.HIDDEN) show(State.CHECKING);
@@ -210,10 +321,11 @@ final class DnsShield {
             view.setVisibility(View.GONE);
             return;
         }
-        int color = next == State.OK ? GREEN : next == State.CHECKING ? AMBER : RED;
+        int color = next == State.OK ? GREEN : next == State.CHECKING ? AMBER : next == State.OFF ? GREY : RED;
         view.setCompoundDrawableTintList(ColorStateList.valueOf(color));
         int text = next == State.OK ? R.string.dns_shield_ok
-                : next == State.CHECKING ? R.string.dns_shield_checking : R.string.dns_shield_failing;
+                : next == State.CHECKING ? R.string.dns_shield_checking
+                : next == State.OFF ? R.string.dns_shield_off : R.string.dns_shield_failing;
         view.setContentDescription(context.getString(text));
         view.setVisibility(View.VISIBLE);
     }
