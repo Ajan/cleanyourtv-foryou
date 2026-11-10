@@ -169,6 +169,8 @@ public final class LauncherSettingsActivity extends Activity {
             choices.edit().putBoolean(Config.KEY_FILTER_KEY, keyFilter).apply();
             InputKeyService helper = InputKeyService.running;
             if (helper != null) helper.setKeyFilter(keyFilter);
+            // Off, the helper no longer sees any key, so it cannot say so when an app button is pressed later: say it now.
+            if (!keyFilter) Toast.makeText(this, R.string.remote_buttons_off_toast, Toast.LENGTH_LONG).show();
             refresh();
         });
         followThemeChoice = findViewById(R.id.followThemeChoice);

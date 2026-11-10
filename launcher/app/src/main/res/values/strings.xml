@@ -165,6 +165,7 @@
     <string name="remote_buttons_state" translatable="false">Remote app buttons: %1$s</string>
     <string name="remote_buttons_on" translatable="false">On (volume moves one step per press)</string>
     <string name="remote_buttons_off" translatable="false">Off (hold volume to ramp)</string>
+    <string name="remote_buttons_off_toast" translatable="false">Remote app buttons off – YouTube, Netflix, Prime and Settings buttons won\'t work until you turn this back on</string>
     <string name="screensaver_not_allowed" translatable="false">Not allowed: grant WRITE_SETTINGS over ADB (see README)</string>
     <!-- game_day: a game on now, in the race panel. -->
     <string name="game_live">Live now</string>
