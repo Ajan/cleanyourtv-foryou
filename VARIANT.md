@@ -24,6 +24,14 @@ haven't been tried.
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
 
+### The top-bar menus
+
+| Private DNS shield (AdGuard on) | Paused for 30 minutes | Wi-Fi |
+|---|---|---|
+| ![The shield's glass menu under the green shield: Private DNS: dns.adguard-dns.com, Pause for 30 minutes, Turn off](docs/variant/dns-menu.jpg) | ![The grey shield's menu: Paused until 11:59 pm, Turn on, Turn off](docs/variant/dns-paused.jpg) | ![The Wi-Fi menu: Connected, 5 GHz, Good signal, and Wi-Fi Settings](docs/variant/wifi-menu.jpg) |
+
+The shield's menu needs `DNS_SWITCH=1` at install (see Permissions below); without it the shield is a status light.
+
 ### Where For You gets its cards
 
 Everything comes from what your dock apps publish to Android TV itself; there is **no outside service, account or
