@@ -892,6 +892,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (getResources().getBoolean(R.bool.dns_shield) && !cfg.topMenu && DnsShield.supported()) {
             dnsShield = new DnsShield(this, findViewById(R.id.btnDns));
             dnsShield.menuOpener = this::showDnsMenu;
+            dnsShield.before = btnInputs;
+            dnsShield.after = btnWifi;
+            dnsShield.mirrored = getResources().getBoolean(R.bool.rtl_menu_bar);
             dnsShield.start();
         }
         addTopBarApps(cfg.topBarApps, cfg.launchActions);

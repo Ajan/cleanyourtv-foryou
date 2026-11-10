@@ -111,6 +111,7 @@ final class DnsShield {
         view.setFocusable(can);
         view.setOnClickListener(can ? v -> { if (menuOpener != null) menuOpener.run(); } : null);
         if (!can && view.hasFocus()) view.clearFocus();
+        linkNeighbours();
     }
 
     /** Whether this launcher may switch Private DNS (WRITE_SECURE_SETTINGS, granted over ADB). */
@@ -156,6 +157,35 @@ final class DnsShield {
             if (am != null) am.cancel(resumeIntent(context));
         }
         e.apply();
+    }
+
+    /**
+     * The buttons either side (Inputs, Wi-Fi) and whether the bar is mirrored (Hebrew), set by MainActivity. Left
+     * from Wi-Fi otherwise lets Android's focus search pick a big For You card below over the small round shield.
+     */
+    @Nullable View before, after;
+    boolean mirrored;
+
+    /** Points the neighbours' Left/Right at the shield while it is shown, selectable and really next to them. */
+    void linkNeighbours() {
+        boolean reachable = view.getVisibility() == View.VISIBLE && view.isFocusable();
+        link(before, !mirrored, reachable);   // Inputs: Right (Left when mirrored) lands on the shield
+        link(after, mirrored, reachable);     // Wi-Fi: Left (Right when mirrored) lands on the shield
+    }
+
+    private void link(@Nullable View neighbour, boolean towardsRight, boolean reachable) {
+        if (neighbour == null || !(view.getParent() instanceof android.view.ViewGroup)) return;
+        android.view.ViewGroup bar = (android.view.ViewGroup) view.getParent();
+        int i = bar.indexOfChild(neighbour);
+        int step = towardsRight ? 1 : -1;
+        View next = null;
+        for (int k = i + step; i >= 0 && k >= 0 && k < bar.getChildCount(); k += step) {
+            View c = bar.getChildAt(k);
+            if (c.getVisibility() == View.VISIBLE) { next = c; break; }
+        }
+        int id = reachable && next == view ? view.getId() : View.NO_ID;
+        if (towardsRight) neighbour.setNextFocusRightId(id);
+        else neighbour.setNextFocusLeftId(id);
     }
 
     /** Home draws the menu (the Inputs menu's glass dropdown); set by MainActivity. */
@@ -319,6 +349,7 @@ final class DnsShield {
         state = next;
         if (next == State.HIDDEN) {
             view.setVisibility(View.GONE);
+            linkNeighbours();
             return;
         }
         int color = next == State.OK ? GREEN : next == State.CHECKING ? AMBER : next == State.OFF ? GREY : RED;
@@ -328,5 +359,6 @@ final class DnsShield {
                 : next == State.OFF ? R.string.dns_shield_off : R.string.dns_shield_failing;
         view.setContentDescription(context.getString(text));
         view.setVisibility(View.VISIBLE);
+        linkNeighbours();
     }
 }
