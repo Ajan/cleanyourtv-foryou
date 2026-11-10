@@ -7,6 +7,10 @@ start with its [README](README.md) and [PROMPT.md](PROMPT.md).
 Tested on a **Sony BRAVIA VU31** (Google TV 14, build UKR1.240726.001, India). Other Google TV sets should work but
 haven't been tried.
 
+![Home on the Sony BRAVIA VU31: the greeting and clock, Inputs, the green Private DNS shield, Wi-Fi and Settings as round icons, the For You row on its Continue tab, and the dock](docs/variant/home.jpg)
+
+*Home on the test TV, November 2026: the **For You** row on its Continue tab, with progress bars, the green **Private DNS shield** next to Wi-Fi, icon-only top buttons, and the dock without app titles.*
+
 ## What this variant adds
 
 | Feature | What it does | Turn it off |
