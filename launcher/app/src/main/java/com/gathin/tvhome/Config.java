@@ -674,6 +674,7 @@ final class Config {
         // Unmounted storage looks like a theme reset; compare only once the file is readable.
         if (mounted) syncThemeChoices(choices, dir, file);
         int chosenColumns = choices.getInt("columns", columns);
+        boolean columnsChosen = choices.contains("columns") && chosenColumns >= 4 && chosenColumns <= 7;
         if (chosenColumns >= 4 && chosenColumns <= 7) columns = chosenColumns;
         int chosenRows = choices.getInt(ROWS_BELOW_DOCK_KEY, rowsBelow);
         if (chosenRows >= 0 && chosenRows <= 3) rowsBelow = chosenRows;
@@ -715,6 +716,17 @@ final class Config {
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
 
+        // Local change (not upstream): the redesign opens with a 5-app dock (Launcher settings can choose 4 to 7; the
+        // tiles then resize to fit the panel), draws its own dock panel and backdrop, and shows no brand-colour glow
+        // and no cinematic shelf; the row peeking below the dock is placed in MainActivity.
+        if (res.getBoolean(R.bool.redesign)) {
+            if (!columnsChosen) columns = 5;
+            rowsBelow = 0;
+            ambientGlow = false;
+            cinematic = false;
+            dockTitle = false;
+            uniformTiles = false;
+        }
         return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputSources, inputUriScheme, Math.max(1, columns),
                 Math.max(0, rowsBelow), animations, advancedEffects, shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv,

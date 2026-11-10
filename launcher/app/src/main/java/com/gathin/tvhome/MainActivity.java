@@ -170,8 +170,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * and darkened, behind Home while focus is in the For You row; fades back to the wallpaper when it leaves.
      */
     private ImageView fyBackdrop;
+    /** Local change (not upstream): the Home redesign (Redesign.java, config.xml redesign). */
+    private boolean redesign;
+    private final Runnable fyBackdropDwell = this::applyPendingBackdrop;
+    private View fyPendingCard;
+    private String fyPendingKey;
+    /** Redesign: Home or wake puts focus on the first Continue card once the row is on screen. */
+    private boolean fyWantFirstCard;
+    private int fyFirstTries;
     private String fyBackdropKey;
     private final android.util.LruCache<String, Bitmap> fyBackdropCache = new android.util.LruCache<>(16);
+    /**
+     * Redesign: finished backdrops (ForYouBackdrop.baked: blur, darkening and both gradients in one bitmap), made on
+     * a background thread and kept per card, about 330 KB each; the focused card's neighbours are made in advance.
+     */
+    private final android.util.LruCache<String, Bitmap> fyBaked = new android.util.LruCache<String, Bitmap>(6 * 1024 * 1024) {
+        @Override
+        protected int sizeOf(String key, Bitmap value) {
+            return value.getAllocationByteCount();
+        }
+    };
+    private final java.util.concurrent.ExecutorService fyBaker = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final java.util.Set<String> fyBaking = new java.util.HashSet<>();
+    private final Map<String, Runnable> fyBakedThen = new HashMap<>();
+    /** Redesign: the backdrop shown now, and the crossfade to the next one. */
+    private Bitmap fyShownBackdrop;
+    private android.animation.ValueAnimator fyBackdropFade;
     /** config.xml cinematic_dots: false leaves the dock position dots out of the cinematic shelf. */
     private boolean heroDotsShown = true;
     /** The artwork's opacity behind the cinematic shelf (config.xml cinematic_art); 0 leaves it out. */
@@ -336,6 +360,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         @Override
         public void onReceive(Context context, Intent intent) {
             openStartAppOnWake();
+            wantFirstCard();   // Local change, redesign: wake lands on the first Continue card
         }
     };
     /** hidden_apps as the adapter sees them (config.xml or a theme's config.json): a hidden app gets no card either. */
@@ -548,6 +573,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
+        redesign = Redesign.on(this);
+        if (redesign) glass.setVisibility(View.GONE);   // focus is shown by lifting, not by the springing glass
         glass.setStyle(cfg.glassStyle);
         if (festive) glass.setAccent(festival.accentColor());
         ambient = findViewById(R.id.ambient);
@@ -720,13 +747,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
-                singleRow, cfg.dockBandAll));
+        if (dockRow) {
+            DockDecoration dock = new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
+                    singleRow, cfg.dockBandAll);
+            if (redesign) dock.redesign(this);   // Local change: the frosted dock panel
+            grid.addItemDecoration(dock);
+        }
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
                     AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
+        }
+        if (redesign) {
+            // 270 x 162 px tiles (rd_tile_w x rd_tile_h), spread evenly across the dock panel between the alignment lines.
+            AppAdapter.redesignTileW = Redesign.px(this, R.dimen.rd_tile_w);
+            AppAdapter.redesignTileH = Redesign.px(this, R.dimen.rd_tile_h);
+            AppAdapter.redesignRadius = getResources().getDimension(R.dimen.rd_card_radius);
+            int padH = Redesign.px(this, R.dimen.rd_dock_pad_h);
+            grid.setPadding(padH, grid.getPaddingTop(), padH, grid.getPaddingBottom());
+        } else {
+            AppAdapter.redesignTileW = 0;
         }
         adapter = new AppAdapter(this, this, COLUMNS, cfg);
         dockApps = cfg.dockApps;
@@ -759,6 +800,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // A single row never shows the names under its tiles (the title above the row names the app), so the
             // 7dp gap and 22dp label item_app.xml keeps for them would only lift the row: sit it that much lower.
             if (singleRow && !cfg.alwaysShowNames) want += (int) (29 * density);
+            // Local change, redesign: the dock sits just low enough for about 48 px of the next row to peek in.
+            // rd_dock_lower moves the dock down; DockDecoration takes as much off the gap under it, so the peek holds.
+            if (redesign) want = Math.max(0, h - dockRow - (int) (8 * density) - Redesign.px(MainActivity.this, R.dimen.rd_peek)
+                    + Redesign.px(MainActivity.this, R.dimen.rd_dock_lower));
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
                 // A vertical grid parks the dock on the new padding line by scrolling (onTileFocused); a sideways
@@ -982,12 +1027,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
+        if (redesign) {
+            // Local change: the redesign's header type and frosted status buttons.
+            Redesign.styleHeader(this);
+            ViewGroup statusBar = findViewById(R.id.topButtons);
+            for (int i = 0; i < statusBar.getChildCount(); i++) Redesign.styleStatusButton(statusBar.getChildAt(i));
+            wantFirstCard();
+        }
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
             if (!onTile) hideGlass();
             if (fyBackdrop != null && !isInside(newF, forYou)) hideForYouBackdrop();
+            // Redesign: the title and details belong to the focused card; they fade out while focus is in the
+            // dock (or the rows below it) and back in, with the newly focused card's info, on return to the row.
+            if (redesign && fyTitle != null) {
+                if (isInside(newF, grid)) fadeForYouText(false);
+                else if (isInside(newF, fyRow)) fadeForYouText(true);
+            }
         });
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -1121,6 +1179,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // so only go back to the first one; rebuilding would replay the entrance animation for nothing.
             grid.post(() -> focusTile(0));
         }
+        wantFirstCard();   // Local change, redesign: Home lands on the first Continue card
     }
 
     @Override
@@ -1156,6 +1215,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         restartIdleClock();
         promptsPaused = false;
+        if (fyGateNext) {
+            fyGateNext = false;
+            closeForYouGate();
+        }
         forYouResume();
         refreshUpdateBell();
         if (dnsShield != null) dnsShield.resume();
@@ -1396,6 +1459,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         clockRefresh.stop();
         handler.removeCallbacks(clockCheck);
         stopped = true;
+        fyGateNext = redesign && forYouOn;   // coming back from an app: Continue is refreshed before Home shows
         tileRefresh.onStop();
     }
 
@@ -1828,6 +1892,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        // Local change, redesign: Back in the row slides to its first card (nothing on the first card); Back in the
+        // dock or the rows below goes up to the row.
+        if (redesign && forYouOn) {
+            View f = getCurrentFocus();
+            if (isInside(f, fyRow)) {
+                ((FadeRow) fyRow).slideToStart();
+                return;
+            }
+            if (isInside(f, grid) && forYouUsable()) {
+                focusForYouCard();
+                return;
+            }
+        }
         // Home screen: Back goes nowhere, unless back_opens_clock is on.
         if (backOpensClock) startActivity(new Intent(this, ClockActivity.class));
     }
@@ -2306,8 +2383,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyRow = findViewById(R.id.fyRow);
         fyArt = new ArtCache(this);
         fyBackdrop = findViewById(R.id.fyBackdrop);
-        // Darkened so the clock, greeting and card titles stay readable over bright artwork.
-        fyBackdrop.setColorFilter(0x99000000, android.graphics.PorterDuff.Mode.SRC_ATOP);
+        if (redesign) {
+            // One view is the whole background: the baked backdrop (darkening and gradients drawn in), black until
+            // the first card's is ready. The window and root backgrounds under it would only be drawn over.
+            getWindow().setBackgroundDrawable(null);
+            root.setBackground(null);
+            // Cold start: a plain dark backdrop with the same gradients, so the first card's crossfades in from it.
+            fyShownBackdrop = ForYouBackdrop.plain();
+            fyBackdrop.setImageBitmap(fyShownBackdrop);
+            fyBackdrop.setVisibility(View.VISIBLE);
+            fyBackdrop.setAlpha(1f);
+        } else {
+            // Darkened so the clock, greeting and card titles stay readable over bright artwork.
+            fyBackdrop.setColorFilter(0x99000000, android.graphics.PorterDuff.Mode.SRC_ATOP);
+        }
         fyAdapter = new ForYouAdapter(new ForYouAdapter.Listener() {
             @Override
             public void onCardFocused(int position, ForYou.Item item, View card) {
@@ -2316,11 +2405,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 hideGlass();
                 showGlowColor(colorForPackage(item.pkg));
                 showForYouBackdrop(item, card);
+                if (redesign) bakeNeighbours(position);
             }
 
             @Override
             public void onCardClicked(ForYou.Item item) {
                 openForYou(item);
+            }
+
+            @Override
+            public void onCardLongPress(int position, ForYou.Item item, View card) {
+                showCardMenu(item, card);
             }
 
             @Override
@@ -2349,6 +2444,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyRow.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         fyRow.setItemAnimator(null);
         fyRow.setAdapter(fyAdapter);
+        if (redesign) {
+            // The focused card snaps to the left line; the title and details below sit on it too and never move.
+            int line = Redesign.px(this, R.dimen.rd_line);
+            forYou.setPadding(0, forYou.getPaddingTop(), 0, forYou.getPaddingBottom());
+            ((FadeRow) fyRow).anchor(line - Redesign.px(this, R.dimen.rd_card_gap) / 2, Redesign.px(this, R.dimen.rd_fade));
+            Redesign.styleTabs(fyTabContinue, fyTabPopular);
+            Redesign.text(fyTitle, R.dimen.rd_title, 600, 0, 0f);
+            fyTitle.setSingleLine(true);
+            fyTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            Redesign.text(fyMeta, R.dimen.rd_details, 400, R.color.rd_details, 0f);
+            for (TextView v : new TextView[]{fyTitle, fyMeta}) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+                // A fixed height (one line of its own type): new text then only redraws the line, with no layout
+                // pass of the whole For You block in the middle of a move.
+                v.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                lp.height = v.getMeasuredHeight();
+                lp.leftMargin = line;
+                lp.rightMargin = line;
+                lp.setMarginStart(line);
+                lp.setMarginEnd(line);
+                v.setLayoutParams(lp);
+            }
+            // rd_gap_tabs_cards (40 px) from the tabs to the cards: the row keeps 10 dp above the card for its lift.
+            ViewGroup.MarginLayoutParams rl = (ViewGroup.MarginLayoutParams) fyRow.getLayoutParams();
+            int rowRoom = Redesign.px(this, R.dimen.rd_row_room);
+            rl.topMargin = Math.max(0, Redesign.px(this, R.dimen.rd_gap_tabs_cards) - Math.round(10 * density)) - rowRoom;
+            fyRow.setLayoutParams(rl);
+            ViewGroup.MarginLayoutParams tl = (ViewGroup.MarginLayoutParams) fyTitle.getLayoutParams();
+            tl.topMargin = -rowRoom;   // the row's extra room below the cards (rd_row_room), taken back
+            fyTitle.setLayoutParams(tl);
+        }
         View.OnKeyListener tabKeys = (v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             switch (keyCode) {
@@ -2403,17 +2530,113 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyPopularTab = popular;
         fyTabContinue.setSelected(!popular);
         fyTabPopular.setSelected(popular);
+        if (redesign) Redesign.selectTab(popular ? fyTabPopular : fyTabContinue, popular ? fyTabContinue : fyTabPopular);
         if (!changed) return;
+        int seq = ++fyTabSeq;
+        boolean slide = redesign && animations && !Redesign.motionOff() && fyShown
+                && forYou.getVisibility() == View.VISIBLE && fyAdapter.getItemCount() > 0;
+        if (!slide) {
+            fyRow.animate().cancel();
+            fyRow.setAlpha(1f);
+            fyRow.setTranslationX(0f);
+            showForYouTab(popular);
+            return;
+        }
+        // Redesign: the old row fades out sliding 40 px away from the new tab, then the new row fades in from 40 px
+        // on the other side; 150 ms each, translation and alpha only (the row is one hardware layer).
+        float shift = Redesign.TAB_SHIFT_DP * getResources().getDisplayMetrics().density * (popular ? -1 : 1);
+        fyRow.animate().cancel();
+        fyRow.animate().alpha(0f).translationX(shift).setDuration(Redesign.TAB_HALF_MS)
+                .setInterpolator(Redesign.SLIDE_EASE).withEndAction(() -> {
+                    if (seq != fyTabSeq) return;
+                    showForYouTab(fyPopularTab);
+                    fyRow.setTranslationX(-shift);
+                    fyRow.animate().alpha(1f).translationX(0f).setDuration(Redesign.TAB_HALF_MS)
+                            .setInterpolator(Redesign.SLIDE_EASE).start();
+                }).start();
+    }
+
+    /** Redesign: bumps on every tab change, so a slide that was overtaken does not swap the cards late. */
+    private int fyTabSeq;
+
+    /** The tab's cards, with its remembered card on the left line. */
+    private void showForYouTab(boolean popular) {
         List<ForYou.Item> items = currentForYouItems();
         fyAdapter.setItems(items);
         int i = Math.max(0, Math.min(fyIndex[popular ? 1 : 0], items.size() - 1));
-        fyRow.scrollToPosition(i);
+        if (redesign) ((FadeRow) fyRow).jumpTo(i);   // the remembered card on the left line
+        else fyRow.scrollToPosition(i);
         showForYouText(items.isEmpty() ? null : items.get(i));
     }
 
+    /** Redesign: focus is in the dock (the title block is faded out), and the text the block is heading for. */
+    private boolean fyTextDown;
+    private int fyTextSeq;
+    private CharSequence fyTextTitle = "", fyTextMeta = "";
+
+    /**
+     * Fades the title and details out (focus went down to the dock) or back in (it came back to the row) over
+     * TEXT_FADE_MS; a cut when animations are off (reduced motion). Coming back, the newly focused card's text is
+     * already in place (showForYouText set it while the block was hidden).
+     */
+    private void fadeForYouText(boolean show) {
+        if (show == !fyTextDown) return;
+        fyTextDown = !show;
+        fyTextSeq++;   // a swap waiting to happen is dropped; the text is set directly while hidden
+        float alpha = show ? 1f : 0f;
+        for (View v : new View[]{fyTitle, fyMeta}) {
+            v.animate().cancel();   // a fade still running the other way turns round from where it is
+            v.setTranslationY(0f);
+            if (!animations || Redesign.motionOff() || v.getAlpha() == alpha) v.setAlpha(alpha);
+            else v.animate().alpha(alpha).setDuration(Redesign.TEXT_FADE_MS).start();
+        }
+    }
+
+    /**
+     * The focused card's title and details. Redesign: a crossfade, not a swap - the old text fades out over
+     * TEXT_OUT_MS, then the new one fades in over TEXT_IN_MS rising 8 px. A press during it retargets from where it
+     * is (fast presses keep the block faded until focus settles). Reduced motion, or the block hidden: set at once.
+     */
     private void showForYouText(ForYou.Item item) {
-        fyTitle.setText(item == null ? "" : item.title);
-        fyMeta.setText(item == null ? "" : item.meta);
+        CharSequence title = item == null ? "" : item.title, meta = item == null ? "" : item.meta;
+        if (title == null) title = "";
+        if (meta == null) meta = "";
+        if (!redesign || !animations || Redesign.motionOff() || fyTextDown) {
+            fyTextSeq++;
+            fyTextTitle = title;
+            fyTextMeta = meta;
+            fyTitle.setText(title);
+            fyMeta.setText(meta);
+            return;
+        }
+        if (TextUtils.equals(title, fyTextTitle) && TextUtils.equals(meta, fyTextMeta)) return;
+        fyTextTitle = title;
+        fyTextMeta = meta;
+        int seq = ++fyTextSeq;
+        if (fyTitle.getAlpha() < 0.02f && fyMeta.getAlpha() < 0.02f) {
+            riseInForYouText(seq);
+            return;
+        }
+        android.view.animation.Interpolator linear = new android.view.animation.LinearInterpolator();
+        fyMeta.animate().cancel();
+        fyMeta.animate().alpha(0f).setDuration(Redesign.TEXT_OUT_MS).setInterpolator(linear).start();
+        fyTitle.animate().cancel();
+        fyTitle.animate().alpha(0f).setDuration(Redesign.TEXT_OUT_MS).setInterpolator(linear)
+                .withEndAction(() -> {
+                    if (seq == fyTextSeq) riseInForYouText(seq);
+                }).start();
+    }
+
+    private void riseInForYouText(int seq) {
+        fyTitle.setText(fyTextTitle);
+        fyMeta.setText(fyTextMeta);
+        float rise = Redesign.TEXT_RISE_DP * getResources().getDisplayMetrics().density;
+        for (View v : new View[]{fyTitle, fyMeta}) {
+            v.animate().cancel();
+            v.setTranslationY(rise);
+            v.animate().alpha(1f).translationY(0f).setDuration(Redesign.TEXT_IN_MS)
+                    .setInterpolator(Redesign.SLIDE_EASE).withEndAction(null).start();
+        }
     }
 
     private void focusForYouCard() {
@@ -2449,12 +2672,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View header = (View) findViewById(R.id.leftBlock).getParent();
         Rect hr = new Rect(0, 0, header.getWidth(), header.getHeight());
         root.offsetDescendantRectToMyCoords(header, hr);
-        float top = hr.bottom + 6 * density;
-        float bottom = dockTopInRoot - 50 * density;
+        // Redesign: 44 px under the header, and 44 px above the dock panel (28 px padding above its tiles).
+        float top = hr.bottom + (redesign ? Redesign.px(this, R.dimen.rd_gap_header_tabs) : 6 * density);
+        float bottom = dockTopInRoot - (redesign ? Redesign.px(this, R.dimen.rd_gap_title_dock)
+                + Redesign.px(this, R.dimen.rd_dock_pad_v) : 50 * density);
         float room = (bottom - top) / density;                     // in dp
         if (fyTitle.getHeight() > 0) fyTitleDp = fyTitle.getHeight() / density;
         if (fyMeta.getHeight() > 0) fyMetaDp = fyMeta.getHeight() / density;
         float tabs = 38f;                                          // tabs (34) and the gap under them (4)
+        if (redesign) tabs += (Redesign.px(this, R.dimen.rd_gap_tabs_cards) - 12 * density) / density;   // over 24 px
         int card;
         boolean title, meta;
         if (room >= tabs + ForYouAdapter.CARD_H_DP + 20 + fyTitleDp + fyMetaDp) { card = ForYouAdapter.CARD_H_DP; title = true; meta = true; }
@@ -2471,13 +2697,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyMeta.setVisibility(meta ? View.VISIBLE : View.GONE);
         fyAdapter.setCardHeightDp(card);
         int rowPx = Math.round((card + (card == ForYouAdapter.CARD_H_DP ? 20 : 16)) * density);
+        if (redesign) rowPx += 2 * Redesign.px(this, R.dimen.rd_row_room);   // taken back by margins (setupForYou)
         ViewGroup.LayoutParams lp = fyRow.getLayoutParams();
         if (lp.height != rowPx) {
             lp.height = rowPx;
             fyRow.setLayoutParams(lp);
         }
         float height = (tabs + rowPx / density + (title ? fyTitleDp : 0) + (meta ? fyMetaDp : 0)) * density;
-        forYou.setY(Math.max(top, bottom - height));
+        forYou.setY(redesign ? top : Math.max(top, bottom - height));   // redesign: anchored under the header
         forYou.setVisibility(View.VISIBLE);
         if (!fyShown) {
             fyShown = true;
@@ -2512,6 +2739,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void applyForYou(List<ForYou.Item> c, List<ForYou.Item> p) {
         if (isDestroyed()) return;
+        if (redesign) {
+            c = withoutHidden(c);
+            p = withoutHidden(p);
+        }
+        if (redesign && fyRow.hasFocus()) {
+            applyForYouKeepingFocus(c, p);
+            openForYouGate();
+            return;
+        }
         if (fyRow.hasFocus()) {   // never pull the cards from under the focus; apply when it leaves the row
             fyPendingContinue = c;
             fyPendingPopular = p;
@@ -2526,6 +2762,85 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         selectForYouTab(popular);
         if (c.isEmpty() && p.isEmpty()) hideForYou();
         else if (fyDockActive && fyDockTop >= 0) placeForYou(fyDockTop);
+        if (redesign) openForYouGate();
+    }
+
+    /**
+     * Redesign: a refresh while focus is on a card. Focus stays on the same show at its new place, on the left line.
+     * Before Home is drawn (the gate) the new order is simply there; once Home is on screen the cards move to their
+     * new places over REORDER_MS (translation only) and new ones fade in.
+     */
+    private void applyForYouKeepingFocus(List<ForYou.Item> c, List<ForYou.Item> p) {
+        List<ForYou.Item> now = fyPopularTab ? p : c;
+        if (now.isEmpty()) {
+            // The shown tab emptied: go to the other one, as a fresh start would.
+            fyContinue = c;
+            fyPopular = p;
+            fyTabContinue.setVisibility(c.isEmpty() ? View.GONE : View.VISIBLE);
+            fyTabPopular.setVisibility(p.isEmpty() ? View.GONE : View.VISIBLE);
+            if (c.isEmpty() && p.isEmpty()) {
+                hideForYou();
+                return;
+            }
+            fyAdapter.setItems(java.util.Collections.emptyList());
+            selectForYouTab(c.isEmpty());
+            focusForYouCard();
+            return;
+        }
+        FadeRow row = (FadeRow) fyRow;
+        View item = fyRow.getFocusedChild();
+        long focusedId = item == null ? RecyclerView.NO_ID : fyRow.getChildItemId(item);
+        boolean animate = fyGateOpen && animations && !Redesign.motionOff();
+        java.util.Map<Long, Float> before = animate ? row.snapshotPositions() : null;
+        fyContinue = c;
+        fyPopular = p;
+        fyTabContinue.setVisibility(c.isEmpty() ? View.GONE : View.VISIBLE);
+        fyTabPopular.setVisibility(p.isEmpty() ? View.GONE : View.VISIBLE);
+        int tab = fyPopularTab ? 1 : 0;
+        fyAdapter.setItems(now);
+        int at = focusedId == RecyclerView.NO_ID ? -1 : fyAdapter.positionOfId(focusedId);
+        if (at < 0) at = Math.max(0, Math.min(fyIndex[tab], now.size() - 1));
+        fyIndex[tab] = at;
+        row.setRoomPosition(at);
+        row.jumpTo(at);
+        if (before != null) row.animateReorder(before);
+        int focusAt = at;
+        fyRow.post(() -> {
+            // The same show kept its view (stable ids) and its focus; another one is focused only if it went away.
+            if (fyRow.getFocusedChild() == null || fyRow.getChildAdapterPosition(fyRow.getFocusedChild()) != focusAt) {
+                RecyclerView.ViewHolder vh = fyRow.findViewHolderForAdapterPosition(focusAt);
+                if (vh != null) vh.itemView.findViewById(R.id.fyCard).requestFocus();
+            }
+        });
+        showForYouText(now.get(at));
+    }
+
+    /**
+     * Redesign: back from an app, Home's first frame waits (at most FY_GATE_MS) for the fresh Continue list, so the
+     * new order is already in place when Home appears. Data that comes later is animated in (applyForYou).
+     */
+    private static final long FY_GATE_MS = 300;
+    private boolean fyGateNext;
+    private boolean fyGateOpen = true;
+    private android.view.ViewTreeObserver.OnPreDrawListener fyGate;
+    private final Runnable fyGateTimeout = this::openForYouGate;
+
+    private void closeForYouGate() {
+        if (fyGate != null) return;
+        fyGateOpen = false;
+        fyGate = () -> fyGateOpen;   // false: this frame is not drawn yet (it is tried again next frame)
+        root.getViewTreeObserver().addOnPreDrawListener(fyGate);
+        handler.postDelayed(fyGateTimeout, FY_GATE_MS);
+    }
+
+    private void openForYouGate() {
+        handler.removeCallbacks(fyGateTimeout);
+        fyGateOpen = true;
+        if (fyGate != null) {
+            root.getViewTreeObserver().removeOnPreDrawListener(fyGate);
+            fyGate = null;
+            root.invalidate();
+        }
     }
 
     private void forYouResume() {
@@ -2555,7 +2870,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void forYouPause() {
         if (!forYouOn) return;
-        if (fyBackdrop != null) {
+        if (redesign) {
+            // The backdrop is the screen's only background: keep the last one; Home picks a card again on return.
+            handler.removeCallbacks(fyBackdropDwell);
+        } else if (fyBackdrop != null) {
             fyBackdrop.animate().cancel();
             fyBackdrop.setAlpha(0f);
             fyBackdropKey = null;
@@ -2563,6 +2881,195 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyArt.setOnline(false);
         handler.removeCallbacks(fyReload);
         if (fyObserver != null) getContentResolver().unregisterContentObserver(fyObserver);
+    }
+
+    // ---- Local change (not upstream): the redesign's For You behaviour ------------------------------------------
+
+    /** Waits 175 ms on a card (150-200), so fast scrolling does not flicker through colours. */
+    private void scheduleBackdrop(ForYou.Item item, View card) {
+        String key = item.art == null || item.art.isEmpty() ? item.pkg + "|" + item.title : item.art;
+        handler.removeCallbacks(fyBackdropDwell);
+        if (key.equals(fyBackdropKey)) return;
+        fyPendingCard = card;
+        fyPendingKey = key;
+        bakeBackdrop(key, artOf(card), null);   // made during the dwell, so it is ready when the dwell ends
+        handler.postDelayed(fyBackdropDwell, 175);
+    }
+
+    /** After the dwell: the card's baked backdrop, crossfaded in over 300 ms (made now if it is not ready yet). */
+    private void applyPendingBackdrop() {
+        View card = fyPendingCard;
+        String key = fyPendingKey;
+        if (card == null || key == null || !card.isFocused()) return;
+        Runnable show = () -> {
+            Bitmap baked = fyBaked.get(key);
+            if (baked == null || !key.equals(fyPendingKey) || !card.isFocused()) return;
+            fyBackdropKey = key;
+            showBackdrop(baked);
+        };
+        if (fyBaked.get(key) != null) show.run();
+        else bakeBackdrop(key, artOf(card), show);   // the art is not downloaded yet: keep what is shown
+    }
+
+    /** The card's art as loaded into its ImageView, or null before it arrives. */
+    @androidx.annotation.Nullable
+    private static Bitmap artOf(View card) {
+        ImageView picture = card == null ? null : card.findViewById(R.id.fyArt);
+        android.graphics.drawable.Drawable d = picture == null ? null : picture.getDrawable();
+        return d instanceof android.graphics.drawable.BitmapDrawable
+                ? ((android.graphics.drawable.BitmapDrawable) d).getBitmap() : null;
+    }
+
+    /** Makes the backdrop for key on the baker thread (once), then runs then (if any) on the main thread. */
+    private void bakeBackdrop(String key, @androidx.annotation.Nullable Bitmap art,
+                              @androidx.annotation.Nullable Runnable then) {
+        if (fyBaked.get(key) != null) {
+            if (then != null) then.run();
+            return;
+        }
+        if (then != null) fyBakedThen.put(key, then);
+        if (art == null || art.isRecycled() || !fyBaking.add(key)) return;
+        fyBaker.execute(() -> {
+            Bitmap baked = null;
+            try {
+                baked = ForYouBackdrop.baked(art);
+            } catch (RuntimeException ignored) {
+                // a recycled or unreadable picture: nothing to show for this card
+            }
+            Bitmap done = baked;
+            handler.post(() -> {
+                fyBaking.remove(key);
+                if (done != null) fyBaked.put(key, done);
+                Runnable r = fyBakedThen.remove(key);
+                if (done != null && r != null) r.run();
+            });
+        });
+    }
+
+    /** The cards either side of the focused one, so moving along the row never waits for a backdrop. */
+    private void bakeNeighbours(int position) {
+        List<ForYou.Item> items = currentForYouItems();
+        for (int p : new int[]{position + 1, position - 1}) {
+            if (p < 0 || p >= items.size()) continue;
+            RecyclerView.ViewHolder vh = fyRow.findViewHolderForAdapterPosition(p);
+            if (vh == null) continue;
+            ForYou.Item it = items.get(p);
+            String key = it.art == null || it.art.isEmpty() ? it.pkg + "|" + it.title : it.art;
+            bakeBackdrop(key, artOf(vh.itemView.findViewById(R.id.fyCard)), null);
+        }
+    }
+
+    /**
+     * Shows a baked backdrop in the one backdrop view. A crossfade draws the old and new bitmaps (two full-screen
+     * draws, nothing else) for 300 ms; then only the new one is left. Reduced motion cuts straight to it.
+     */
+    private void showBackdrop(Bitmap next) {
+        if (fyBackdropFade != null) fyBackdropFade.cancel();
+        fyBackdropFade = null;
+        Bitmap prev = fyShownBackdrop;
+        fyShownBackdrop = next;
+        if (prev == null || !animations || Redesign.motionOff()) {
+            fyBackdrop.setImageBitmap(next);
+            return;
+        }
+        android.graphics.drawable.BitmapDrawable oldD = new android.graphics.drawable.BitmapDrawable(getResources(), prev);
+        android.graphics.drawable.BitmapDrawable newD = new android.graphics.drawable.BitmapDrawable(getResources(), next);
+        newD.setAlpha(0);
+        fyBackdrop.setImageDrawable(new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{oldD, newD}));
+        android.animation.ValueAnimator fade = android.animation.ValueAnimator.ofInt(0, 255);
+        fade.setDuration(300);
+        fade.addUpdateListener(a -> newD.setAlpha((int) a.getAnimatedValue()));
+        fade.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator a) {
+                if (fyShownBackdrop == next) fyBackdrop.setImageBitmap(next);   // back to one draw
+            }
+        });
+        fyBackdropFade = fade;
+        fade.start();
+    }
+
+    private void wantFirstCard() {
+        if (!redesign || !forYouOn) return;
+        fyWantFirstCard = true;
+        fyFirstTries = 0;
+        handler.removeCallbacks(fyFirstCard);
+        handler.postDelayed(fyFirstCard, 250);
+    }
+
+    /** Home or wake: the first Continue card, or the first Popular one when nothing is in progress. */
+    private final Runnable fyFirstCard = new Runnable() {
+        @Override
+        public void run() {
+            if (!fyWantFirstCard) return;
+            if (fyShown && !fyNoRoom && !(fyContinue.isEmpty() && fyPopular.isEmpty())) {
+                fyWantFirstCard = false;
+                boolean popular = fyContinue.isEmpty();
+                fyIndex[popular ? 1 : 0] = 0;
+                selectForYouTab(popular);
+                ((FadeRow) fyRow).jumpTo(0);
+                fyRow.post(MainActivity.this::focusForYouCard);
+            } else if (++fyFirstTries < 20) {
+                handler.postDelayed(this, 250);
+            }
+        }
+    };
+
+    private static final String FY_HIDDEN = "for_you_hidden";
+
+    /** A Continue card comes back if it is watched again (a newer engagement time); a Popular card stays hidden. */
+    private static String cardKey(ForYou.Item it) {
+        return it.pkg + "\n" + (it.title == null ? "" : it.title.toLowerCase()) + "\n" + it.when;
+    }
+
+    private java.util.Set<String> hiddenCards() {
+        return new java.util.HashSet<>(getSharedPreferences(FY_HIDDEN, MODE_PRIVATE)
+                .getStringSet("keys", java.util.Collections.emptySet()));
+    }
+
+    private List<ForYou.Item> withoutHidden(List<ForYou.Item> in) {
+        java.util.Set<String> keys = hiddenCards();
+        if (keys.isEmpty()) return in;
+        List<ForYou.Item> out = new ArrayList<>();
+        for (ForYou.Item it : in) if (!keys.contains(cardKey(it))) out.add(it);
+        return out;
+    }
+
+    /** Hold OK on a card: "Remove from Continue" (or "Hide from Popular") and "Go to show". */
+    private void showCardMenu(ForYou.Item item, View card) {
+        if (openPopup != null) return;
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = glassPopup(panel, (int) (240 * density));
+        addSettingsMenuRow(rows, popup, fyPopularTab ? R.string.rd_card_hide_popular : R.string.rd_card_remove_continue,
+                () -> hideForYouCard(item));
+        addSettingsMenuRow(rows, popup, R.string.rd_card_go_to_show, () -> openForYou(item));
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max((int) (240 * density), panel.getMeasuredWidth()));
+        dropIn(popup, panel, card, Gravity.START);
+        rows.getChildAt(0).requestFocus();
+    }
+
+    /** Apps don't let another app edit their Continue list, so "remove" hides the card in this launcher. */
+    private void hideForYouCard(ForYou.Item item) {
+        java.util.Set<String> keys = hiddenCards();
+        keys.add(cardKey(item));
+        getSharedPreferences(FY_HIDDEN, MODE_PRIVATE).edit().putStringSet("keys", keys).apply();
+        List<ForYou.Item> list = new ArrayList<>(currentForYouItems());
+        int at = Math.max(0, list.indexOf(item));
+        list.remove(item);
+        if (fyPopularTab) fyPopular = list;
+        else fyContinue = list;
+        fyAdapter.setItems(list);
+        if (list.isEmpty()) {
+            applyForYou(fyContinue, fyPopular);
+            return;
+        }
+        int i = Math.min(at, list.size() - 1);
+        fyIndex[fyPopularTab ? 1 : 0] = i;
+        ((FadeRow) fyRow).jumpTo(i);
+        fyRow.post(this::focusForYouCard);
     }
 
     /** Local change: whether {@code v} is {@code parent} or inside it. */
@@ -2575,6 +3082,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Local change: cross-fade the blurred backdrop to this card's artwork (nothing yet: leave it as it is). */
     private void showForYouBackdrop(ForYou.Item item, View card) {
+        if (redesign) {
+            scheduleBackdrop(item, card);
+            return;
+        }
         if (fyBackdrop == null) return;
         String key = item.art == null || item.art.isEmpty() ? item.pkg + "|" + item.title : item.art;
         if (key.equals(fyBackdropKey)) {
@@ -2607,6 +3118,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void hideForYouBackdrop() {
+        if (redesign) return;   // the redesign keeps the last card's backdrop, also while focus is in the dock
         if (fyBackdrop == null || fyBackdrop.getAlpha() == 0f) return;
         fyBackdrop.animate().cancel();
         fyBackdrop.animate().alpha(0f).setDuration(animations ? 400 : 0).start();

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream): the Home redesign's colours (ARGB). -->
+<resources>
+    <color name="rd_greeting">#D9FFFFFF</color>       <!-- white 85% -->
+    <color name="rd_divider">#4DFFFFFF</color>        <!-- white 30% -->
+    <color name="rd_date">#E6FFFFFF</color>           <!-- white 90% -->
+    <color name="rd_button">#24FFFFFF</color>         <!-- white 14% -->
+    <color name="rd_focus">#FFFFFFFF</color>          <!-- focused surfaces: solid white -->
+    <color name="rd_on_focus">#FF111111</color>       <!-- dark text and icons on white -->
+    <color name="rd_tabs">#1AFFFFFF</color>           <!-- capsule, white 10% -->
+    <color name="rd_tab_selected">#42FFFFFF</color>   <!-- white 26% -->
+    <color name="rd_tab_rest">#BFFFFFFF</color>       <!-- unselected tab text, white 75% -->
+    <color name="rd_details">#C7FFFFFF</color>        <!-- white 78% -->
+    <color name="rd_track">#8C000000</color>          <!-- black 55% -->
+    <color name="rd_dock">#14FFFFFF</color>           <!-- white 8% -->
+    <color name="rd_dock_edge">#29FFFFFF</color>      <!-- white 16% -->
+    <color name="rd_scrim">#FF080405</color>          <!-- rgba(8,4,5) for the backdrop gradients -->
+</resources>

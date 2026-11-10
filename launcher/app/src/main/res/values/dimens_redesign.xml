@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream): the Home redesign's tokens. Written in dp/sp; at the TV's 320 dpi, 1 dp = 2 px of the
+     1920x1080 design, so each value is the design's px divided by 2 (the px value is in the comment).
+     Minimum text size on Home: 24 px = 12 sp (about 1.4 cm on a 50-inch screen, for reading from about 3 m).
+     Nothing on Home may go below rd_text_min. -->
+<resources>
+    <dimen name="rd_text_min">12sp</dimen>           <!-- 24 px: the smallest text allowed -->
+    <!-- Layout -->
+    <dimen name="rd_line">64dp</dimen>                 <!-- 128 px alignment lines, left and right -->
+    <dimen name="rd_top">32dp</dimen>                  <!-- 64 px top padding -->
+    <dimen name="rd_gap_header_tabs">22dp</dimen>      <!-- 44 px -->
+    <dimen name="rd_gap_tabs_cards">20dp</dimen>       <!-- 40 px -->
+    <dimen name="rd_gap_cards_title">10dp</dimen>      <!-- 20 px -->
+    <dimen name="rd_gap_title_dock">22dp</dimen>       <!-- 44 px -->
+    <!-- Header type -->
+    <dimen name="rd_greeting">12sp</dimen>             <!-- 24 px, weight 500 -->
+    <dimen name="rd_clock">48sp</dimen>                <!-- 96 px, weight 300 -->
+    <dimen name="rd_ampm">14sp</dimen>                 <!-- 28 px, weight 500 -->
+    <dimen name="rd_divider_w">1dp</dimen>             <!-- 2 px -->
+    <dimen name="rd_divider_h">28dp</dimen>            <!-- 56 px -->
+    <dimen name="rd_date">15sp</dimen>                 <!-- 30 px, weight 500 -->
+    <!-- Status buttons and tabs -->
+    <dimen name="rd_button">42dp</dimen>               <!-- 84 px circles -->
+    <dimen name="rd_tabs_pad">3dp</dimen>              <!-- 6 px capsule padding -->
+    <dimen name="rd_tab_text">14sp</dimen>             <!-- 28 px -->
+    <!-- Content row -->
+    <dimen name="rd_card_w">185dp</dimen>              <!-- 370 px -->
+    <dimen name="rd_card_h">104dp</dimen>              <!-- 208 px -->
+    <dimen name="rd_card_radius">6dp</dimen>           <!-- 12 px (focused: 14 px through the 1.135 scale) -->
+    <dimen name="rd_card_gap">12dp</dimen>             <!-- 24 px -->
+    <dimen name="rd_fade">120dp</dimen>                <!-- 240 px right-edge fade -->
+    <dimen name="rd_progress_h">3dp</dimen>            <!-- 6 px, radius 3 px -->
+    <dimen name="rd_progress_side">8dp</dimen>         <!-- 16 px -->
+    <dimen name="rd_progress_bottom">7dp</dimen>       <!-- 14 px -->
+    <dimen name="rd_title">20sp</dimen>                <!-- 40 px, weight 600 -->
+    <dimen name="rd_details">13sp</dimen>              <!-- 26 px, weight 400 -->
+    <!-- Dock -->
+    <dimen name="rd_dock_radius">8dp</dimen>           <!-- 16 px -->
+    <dimen name="rd_dock_pad_v">14dp</dimen>           <!-- 28 px -->
+    <dimen name="rd_dock_pad_h">20dp</dimen>           <!-- 40 px -->
+    <dimen name="rd_tile_w">135dp</dimen>              <!-- 270 px (5:3) -->
+    <dimen name="rd_tile_h">81dp</dimen>               <!-- 162 px -->
+    <!-- Unfocused dock tiles: 65% opacity (and 50% saturation), so dark logos stay recognisable. -->
+    <item name="rd_tile_rest_alpha" format="float" type="dimen">0.65</item>
+    <!-- The dock sits 16 px lower than the base layout, to follow the 40 px tabs gap down (title block to dock
+         stays 44 px); the gap under the dock shrinks by as much, so the second row still peeks in by 48 px. -->
+    <dimen name="rd_dock_lower">8dp</dimen>            <!-- 16 px -->
+    <!-- Extra height above and below the card row, taken back with negative margins: the row is one hardware layer
+         (its right-edge fade), and the lifted card's shadow must fit inside it. Moves nothing on screen. -->
+    <dimen name="rd_row_room">16dp</dimen>
+    <dimen name="rd_peek">24dp</dimen>                 <!-- 48 px of the second row -->
+    <!-- Motion -->
+    <dimen name="rd_bounce">16dp</dimen>               <!-- 32 px edge bounce -->
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream), redesign: the capsule around the Continue and Popular tabs, white 10%. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/rd_tabs" />
+    <corners android:radius="100dp" />
+</shape>

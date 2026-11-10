@@ -209,6 +209,7 @@ A new key needs one there in the same pull request.
 | `update_bell` | bool, `config.xml` only | This variant ([VARIANT.md](../VARIANT.md)): the bell in the top bar while the Play Store has updates waiting. Not read from a theme |
 | `dns_shield` | bool, `config.xml` only | This variant ([VARIANT.md](../VARIANT.md)): the Private DNS shield in the top bar, shown only in strict mode. Not read from a theme |
 | `dream_down_component` | string, `config.xml` only | This variant ([VARIANT.md](../VARIANT.md)): the activity Down opens while the screensaver runs, as `package/activity`; empty: off. Not read from a theme |
+| `redesign` | bool, `config.xml` only | This variant ([VARIANT.md](../VARIANT.md)): the Home redesign: Inter, focus by lifting, frosted surfaces, a backdrop from the focused card. Not read from a theme |
 
 ## Wallpapers
 

@@ -35,6 +35,25 @@
         android:visibility="gone"
         android:importantForAccessibility="no" />
 
+    <!-- Local change (not upstream), redesign: the second backdrop layer for crossfades, and the always-on
+         gradients over both (MainActivity). -->
+    <ImageView
+        android:id="@+id/fyBackdropB"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/rdScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+
 
     <!-- Ambient glow in the colour of the focused dock app. -->
     <View
@@ -499,7 +518,7 @@
                 android:text="@string/fy_popular" />
         </LinearLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
+        <com.gathin.tvhome.FadeRow
             android:id="@+id/fyRow"
             android:layout_width="match_parent"
             android:layout_height="124dp"

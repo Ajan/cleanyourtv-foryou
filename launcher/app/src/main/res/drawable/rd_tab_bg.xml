@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream), redesign: one tab. Focused: solid white. Selected: white 26%. No outlines. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle"><solid android:color="@color/rd_focus" /><corners android:radius="100dp" /></shape>
+    </item>
+    <item android:state_selected="true">
+        <shape android:shape="rectangle"><solid android:color="@color/rd_tab_selected" /><corners android:radius="100dp" /></shape>
+    </item>
+    <item android:drawable="@android:color/transparent" />
+</selector>

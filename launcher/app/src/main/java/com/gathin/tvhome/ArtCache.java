@@ -134,7 +134,18 @@ final class ArtCache {
         while (o.outHeight / (o.inSampleSize * 2) >= heightPx) o.inSampleSize *= 2;
         o.inJustDecodeBounds = false;
         o.inPreferredConfig = Bitmap.Config.RGB_565;
-        return BitmapFactory.decodeFile(f.getPath(), o);
+        Bitmap b = BitmapFactory.decodeFile(f.getPath(), o);
+        if (b == null) return null;
+        // Local change: exactly the shown height (power-of-two sampling leaves up to twice that), so a smaller
+        // texture goes to the graphics chip, and it goes now, off the main thread, not in the frame that shows it.
+        if (b.getHeight() > heightPx + 2) {
+            int w = Math.max(1, Math.round(b.getWidth() * (float) heightPx / b.getHeight()));
+            Bitmap scaled = Bitmap.createScaledBitmap(b, w, heightPx, true);
+            if (scaled != b) b.recycle();
+            b = scaled;
+        }
+        b.prepareToDraw();
+        return b;
     }
 
     private void prune() {

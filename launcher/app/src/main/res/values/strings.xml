@@ -161,6 +161,9 @@
     <string name="dns_menu_title" translatable="false">Private DNS: %1$s</string>
     <string name="dns_menu_title_off" translatable="false">Private DNS off (%1$s saved)</string>
     <string name="dns_paused_until" translatable="false">Paused until %1$s</string>
+    <string name="rd_card_remove_continue" translatable="false">Remove from Continue</string>
+    <string name="rd_card_hide_popular" translatable="false">Hide from Popular</string>
+    <string name="rd_card_go_to_show" translatable="false">Go to show</string>
     <string name="wifi_menu_settings" translatable="false">Wi-Fi Settings…</string>
     <string name="wifi_menu_connected" translatable="false">Connected</string>
     <string name="wifi_menu_ethernet" translatable="false">Ethernet connected</string>

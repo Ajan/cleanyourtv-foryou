@@ -64,13 +64,40 @@ final class ForYou {
         return l;
     }
 
+    /** The first canonical genre, as words ("Drama", "Family Kids"), or "" when there is none. */
+    private static String genre(String encoded) {
+        if (encoded.isEmpty()) return "";
+        try {
+            String[] g = TvContract.Programs.Genres.decode(encoded);
+            if (g.length == 0 || g[0].isEmpty()) return "";
+            StringBuilder out = new StringBuilder();
+            for (String w : g[0].toLowerCase().split("_")) {
+                if (w.isEmpty()) continue;
+                if (out.length() > 0) out.append(' ');
+                out.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+            }
+            return out.toString();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
     private static String episode(String season, String episode) {
         if (season.isEmpty() && episode.isEmpty()) return "";
         if (season.isEmpty()) return "E" + episode;
         return "S" + season + (episode.isEmpty() ? "" : " E" + episode);
     }
 
+    /** "22 min left", "1 h 5 min left"; under a minute counts as one. */
+    static String timeLeft(long ms) {
+        long min = Math.max(1, (ms + 59_999) / 60_000);
+        if (min < 60) return min + " min left";
+        long h = min / 60, m = min % 60;
+        return m == 0 ? h + " h left" : h + " h " + m + " min left";
+    }
+
     static List<Item> loadContinue(Context c, List<String> dock) {
+        boolean redesign = Redesign.on(c);
         List<Item> out = new ArrayList<>();
         Set<String> dockSet = new HashSet<>(dock);
         Map<String, String> labels = new HashMap<>();
@@ -110,6 +137,8 @@ final class ForYou {
                 long pos = cur.isNull(5) ? 0 : cur.getLong(5), dur = cur.isNull(6) ? 0 : cur.getLong(6);
                 if (type == TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE && pos > 0 && dur > 0) {
                     it.progress = (int) Math.max(2, Math.min(100, pos * 100 / dur));
+                    // Local change, redesign: "· 22 min left", only from the app's own position and duration.
+                    if (redesign && dur > pos) it.meta = it.meta + " · " + timeLeft(dur - pos);
                 }
                 String poster = s(cur, 7), thumb = s(cur, 8);
                 it.art = !thumb.isEmpty() ? thumb : poster;
@@ -130,6 +159,7 @@ final class ForYou {
     }
 
     static List<Item> loadPopular(Context c, List<String> dock) {
+        boolean redesign = Redesign.on(c);
         ContentResolver cr = c.getContentResolver();
         Map<String, String> labels = new HashMap<>();
         Map<String, Long> firstChannel = new HashMap<>();
@@ -151,7 +181,8 @@ final class ForYou {
         String[] pp = {TvContract.PreviewPrograms.COLUMN_TITLE, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,
                 TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI, TvContract.PreviewPrograms.COLUMN_THUMBNAIL_URI,
                 TvContract.PreviewPrograms.COLUMN_INTENT_URI, TvContract.PreviewPrograms.COLUMN_POSTER_ART_ASPECT_RATIO,
-                TvContract.PreviewPrograms.COLUMN_SEASON_DISPLAY_NUMBER, TvContract.PreviewPrograms.COLUMN_EPISODE_DISPLAY_NUMBER};
+                TvContract.PreviewPrograms.COLUMN_SEASON_DISPLAY_NUMBER, TvContract.PreviewPrograms.COLUMN_EPISODE_DISPLAY_NUMBER,
+                TvContract.PreviewPrograms.COLUMN_RELEASE_DATE, TvContract.PreviewPrograms.COLUMN_CANONICAL_GENRE};
         for (String pkg : dock) {
             List<Long> ids = channels.get(pkg);
             if (ids == null) continue;
@@ -172,6 +203,18 @@ final class ForYou {
                         String poster = s(cur, 2), thumb = s(cur, 3);
                         it.art = !poster.isEmpty() ? poster : thumb;
                         it.aspect = !poster.isEmpty() ? aspect(cur.isNull(5) ? 0 : cur.getInt(5)) : 16f / 9f;
+                        if (redesign) {
+                            // 16:9 cards: the landscape picture first. Then the year and genre, when the app gives them.
+                            if (!thumb.isEmpty()) {
+                                it.art = thumb;
+                                it.aspect = 16f / 9f;
+                            }
+                            String year = s(cur, 8).length() >= 4 && s(cur, 8).substring(0, 4).matches("\\d{4}")
+                                    ? s(cur, 8).substring(0, 4) : "";
+                            String genre = genre(s(cur, 9));
+                            if (!year.isEmpty()) it.meta = it.meta + " · " + year;
+                            if (!genre.isEmpty()) it.meta = it.meta + " · " + genre;
+                        }
                         it.intentUri = s(cur, 4);
                         items.add(it);
                     }

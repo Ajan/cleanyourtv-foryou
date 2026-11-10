@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream), redesign: 84 px status buttons, white 14% with no border; focused solid white. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval"><solid android:color="@color/rd_focus" /></shape>
+    </item>
+    <item>
+        <shape android:shape="oval"><solid android:color="@color/rd_button" /></shape>
+    </item>
+</selector>

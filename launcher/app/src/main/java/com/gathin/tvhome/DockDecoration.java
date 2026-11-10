@@ -82,11 +82,56 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         if (pos >= 0 && (singleRow || pos < dockSize)) {
             outRect.top = (int) (6 * density);
             outRect.bottom = (int) (12 * density);
+            // Redesign: the dock is lowered by rdLower (MainActivity), so the row under it comes up by as much.
+            if (rdFill != null) outRect.bottom = Math.max(0, outRect.bottom - rdLower);
         }
+    }
+
+    /** Local change (not upstream): the redesign's frosted dock panel; null when it is off. */
+    private Paint rdFill, rdEdge;
+    private float rdRadius, rdPadV;
+    private int rdLower;
+
+    /** Turns on the redesign's panel: from the left line to the right one, 16 px corners, white 8%, a top highlight. */
+    void redesign(android.content.Context c) {
+        android.content.res.Resources r = c.getResources();
+        rdRadius = r.getDimension(R.dimen.rd_dock_radius);
+        rdPadV = r.getDimension(R.dimen.rd_dock_pad_v);
+        rdLower = r.getDimensionPixelSize(R.dimen.rd_dock_lower);
+        rdFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        rdFill.setColor(r.getColor(R.color.rd_dock, null));
+        rdEdge = new Paint(Paint.ANTI_ALIAS_FLAG);
+        rdEdge.setColor(r.getColor(R.color.rd_dock_edge, null));
+        rdEdge.setStrokeWidth(Math.max(1f, density / 2f));
+    }
+
+    private void drawRedesignPanel(Canvas c, RecyclerView parent) {
+        float top = Float.MAX_VALUE, bottom = -1;
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            int pos = parent.getChildAdapterPosition(child);
+            if (pos < 0 || pos >= dockSize) continue;
+            View card = child.findViewById(R.id.card);
+            if (card == null) continue;
+            float t = child.getTop() + card.getTop() + child.getTranslationY();
+            top = Math.min(top, t);
+            bottom = Math.max(bottom, t + card.getHeight());
+        }
+        if (bottom < 0) return;
+        // The grid sits between the alignment lines, so its edges are the panel's.
+        rect.set(density / 2f, top - rdPadV, parent.getWidth() - density / 2f, bottom + rdPadV);
+        // No drop shadow: a blurred shadow layer under a 1664 x 230 panel was a costly draw every frame and an extra
+        // layer of overdraw, for a shadow that barely shows on the dark backdrop.
+        c.drawRoundRect(rect, rdRadius, rdRadius, rdFill);
+        c.drawLine(rect.left + rdRadius, rect.top + density / 2f, rect.right - rdRadius, rect.top + density / 2f, rdEdge);
     }
 
     @Override
     public void onDraw(@NonNull Canvas c, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+        if (rdFill != null) {
+            drawRedesignPanel(c, parent);
+            return;
+        }
         if (!bandVisible) return;
         boolean any = false;
         int cardWidth = 0;

@@ -105,7 +105,20 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
      * Tile width for a grid of this inner width: the cell minus room for the focus zoom and the glass
      * highlight, capped at the design size so 4 columns on a 1080p TV look exactly as before.
      */
+    /**
+     * Local change (not upstream): the redesign's tile, at most 270 x 162 px (5:3, rd_tile_w x rd_tile_h), set by
+     * MainActivity when it is on; 0 off. Five columns get the full size; six or seven shrink it (still 5:3) so a lifted
+     * tile stays clear of its neighbours. The tiles are spread evenly across the dock panel.
+     */
+    static int redesignTileW, redesignTileH;
+    static float redesignRadius;
+
     static int tileWidthPx(int innerWidthPx, int columns, float density) {
+        if (redesignTileW > 0) {
+            if (innerWidthPx <= 0 || columns <= 0) return redesignTileW;
+            int fit = (int) ((innerWidthPx / (float) columns - 5 * density) / Redesign.LIFT_SCALE);
+            return Math.max(Math.round(80 * density), Math.min(redesignTileW, fit));
+        }
         int design = Math.round(DESIGN_W_DP * density);
         if (innerWidthPx <= 0 || columns <= 0) return design;
         int cell = innerWidthPx / columns;
@@ -114,6 +127,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     static int tileHeightPx(int tileWidthPx) {
+        if (redesignTileW > 0) return Math.round(tileWidthPx * (float) redesignTileH / redesignTileW);
         return Math.round(tileWidthPx * DESIGN_H_DP / DESIGN_W_DP);
     }
 
@@ -481,6 +495,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.name.setVisibility(dockKind && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
         h.inDock = dockKind;
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
+        h.redesign = redesignTileW > 0;
+        h.restAlpha = dockKind ? Redesign.tileRestAlpha(h.itemView.getContext()) : Redesign.ROW_REST_ALPHA;
         h.name.setAlpha(focused ? 1f : restNameAlpha);
         h.card.setScaleX(focused && animations ? focusScale() : 1f);
         h.card.setScaleY(focused && animations ? focusScale() : 1f);
@@ -508,6 +524,20 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.icon.setVisibility(View.VISIBLE);
             h.label.setText(e.label);
             h.label.setVisibility(uniformTiles ? View.GONE : View.VISIBLE);
+        }
+        if (h.redesign) {
+            // Dimmed until focused: the dock at 50% and half saturation, the row below at 35%. No names under tiles.
+            if (!(h.card.getForeground() instanceof Redesign.Sheen)) h.card.setForeground(new Redesign.Sheen());
+            h.name.setVisibility(View.INVISIBLE);
+            h.card.setScaleX(focused ? Redesign.LIFT_SCALE : 1f);
+            h.card.setScaleY(focused ? Redesign.LIFT_SCALE : 1f);
+            h.card.setTranslationY(0f);
+            h.card.setTranslationZ(0f);
+            h.card.setAlpha(focused ? 1f : h.restAlpha);
+            h.banner.setScaleX(1f);
+            h.banner.setScaleY(1f);
+            h.banner.setColorFilter(focused || !dockKind ? null : Redesign.HALF_SATURATION);
+            h.icon.setColorFilter(focused || !dockKind ? null : Redesign.HALF_SATURATION);
         }
         h.card.setOnClickListener(v -> launch(e));
         h.card.setOnLongClickListener(v -> {
@@ -897,6 +927,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     /** Corner radius for a tile of this width: 16dp at the design width, proportionally less when smaller. */
     static float cornerRadius(int tileWidthPx, float density) {
+        if (redesignTileW > 0) return redesignRadius;   // 12 px
         return 16f * density * Math.min(1f, tileWidthPx / (DESIGN_W_DP * density));
     }
 
@@ -916,6 +947,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final boolean overshoot;
         /** A dock tile: it grows in place without advanced_effects' lift, which reads as off-centre in the band (#2135). */
         boolean inDock;
+        /** Local change: the redesign's lift and resting opacity (dock 50%, the row below 35%). */
+        boolean redesign;
+        float restAlpha = 1f;
 
         Holder(View v, TileListener listener, boolean animations, boolean advancedEffects,
                boolean reducedMotion, float restNameAlpha, boolean overshoot) {
@@ -947,10 +981,24 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (keyCode != KeyEvent.KEYCODE_DPAD_UP && keyCode != KeyEvent.KEYCODE_DPAD_DOWN
                         && keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
                 int pos = getBindingAdapterPosition();
-                return listener != null && pos != RecyclerView.NO_POSITION && listener.onTileVerticalKey(pos, keyCode);
+                boolean handled = listener != null && pos != RecyclerView.NO_POSITION && listener.onTileVerticalKey(pos, keyCode);
+                // Local change, redesign: pushing past either end of the dock bounces the tile, once per press.
+                if (redesign && handled && inDock && event.getRepeatCount() == 0
+                        && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                    Redesign.bounce(view, keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
+                }
+                return handled;
             });
 
             card.setOnFocusChangeListener((view, focused) -> {
+                if (redesign) {
+                    // The same lift as the For You cards, from the tile's centre; full colour when focused.
+                    Redesign.lift(view, focused, restAlpha, false, inDock, banner);
+                    if (inDock) icon.setColorFilter(focused ? null : Redesign.HALF_SATURATION);
+                    int pos = getBindingAdapterPosition();
+                    if (focused && listener != null && pos != RecyclerView.NO_POSITION) listener.onTileFocused(pos, view);
+                    return;
+                }
                 view.animate().cancel();
                 banner.animate().cancel();
                 name.animate().cancel();

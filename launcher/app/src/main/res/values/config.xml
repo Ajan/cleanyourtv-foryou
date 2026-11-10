@@ -427,6 +427,11 @@
          from standby, when apps opened then cannot connect. Red: no answer for two minutes. Status only, no
          focus; hidden when Private DNS is off or automatic. false: off. -->
     <bool name="dns_shield">true</bool>
+    <!-- Local change (not upstream): the Home redesign (Redesign.java; tvOS-inspired, Inter, focus by lifting,
+         frosted surfaces, a backdrop from the focused card). Sizes and colours: dimens_redesign.xml and
+         colors_redesign.xml. It keeps the dock at 5 apps with one row peeking below, and no brand-colour glow.
+         false: Home as before. -->
+    <bool name="redesign">true</bool>
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->

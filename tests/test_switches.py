@@ -56,7 +56,7 @@ SCREENSHOT_WANTED = {
     "wallpaper_moods", "wallpaper_order", "wallpaper_true_color", "wifi_label_width",
     "wifi_status_color",
     # Local change (not upstream): this variant's config.xml-only keys (VARIANT.md); no switches screenshots yet.
-    "dns_shield", "dream_down_component", "for_you", "update_bell",
+    "dns_shield", "dream_down_component", "for_you", "update_bell", "redesign",
 }
 
 
