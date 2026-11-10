@@ -165,6 +165,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml cinematic_white_focus: the cinematic shelf keeps the white highlight. */
     private boolean cinematicWhiteFocus;
     private ImageView heroArt;
+    /**
+     * Local change (not upstream): the focused For You card's artwork, softly blurred (ForYouBackdrop: 160x90)
+     * and darkened, behind Home while focus is in the For You row; fades back to the wallpaper when it leaves.
+     */
+    private ImageView fyBackdrop;
+    private String fyBackdropKey;
+    private final android.util.LruCache<String, Bitmap> fyBackdropCache = new android.util.LruCache<>(16);
     /** config.xml cinematic_dots: false leaves the dock position dots out of the cinematic shelf. */
     private boolean heroDotsShown = true;
     /** The artwork's opacity behind the cinematic shelf (config.xml cinematic_art); 0 leaves it out. */
@@ -975,6 +982,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
             boolean onTile = newF != null && newF.getId() == R.id.card;
             if (!onTile) hideGlass();
+            if (fyBackdrop != null && !isInside(newF, forYou)) hideForYouBackdrop();
         });
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -2292,6 +2300,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         fyMeta = findViewById(R.id.fyMeta);
         fyRow = findViewById(R.id.fyRow);
         fyArt = new ArtCache(this);
+        fyBackdrop = findViewById(R.id.fyBackdrop);
+        // Darkened so the clock, greeting and card titles stay readable over bright artwork.
+        fyBackdrop.setColorFilter(0x99000000, android.graphics.PorterDuff.Mode.SRC_ATOP);
         fyAdapter = new ForYouAdapter(new ForYouAdapter.Listener() {
             @Override
             public void onCardFocused(int position, ForYou.Item item, View card) {
@@ -2299,6 +2310,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 showForYouText(item);
                 hideGlass();
                 showGlowColor(colorForPackage(item.pkg));
+                showForYouBackdrop(item, card);
             }
 
             @Override
@@ -2538,9 +2550,61 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void forYouPause() {
         if (!forYouOn) return;
+        if (fyBackdrop != null) {
+            fyBackdrop.animate().cancel();
+            fyBackdrop.setAlpha(0f);
+            fyBackdropKey = null;
+        }
         fyArt.setOnline(false);
         handler.removeCallbacks(fyReload);
         if (fyObserver != null) getContentResolver().unregisterContentObserver(fyObserver);
+    }
+
+    /** Local change: whether {@code v} is {@code parent} or inside it. */
+    private static boolean isInside(View v, View parent) {
+        for (View x = v; x != null; x = x.getParent() instanceof View ? (View) x.getParent() : null) {
+            if (x == parent) return true;
+        }
+        return false;
+    }
+
+    /** Local change: cross-fade the blurred backdrop to this card's artwork (nothing yet: leave it as it is). */
+    private void showForYouBackdrop(ForYou.Item item, View card) {
+        if (fyBackdrop == null) return;
+        String key = item.art == null || item.art.isEmpty() ? item.pkg + "|" + item.title : item.art;
+        if (key.equals(fyBackdropKey)) {
+            fyBackdrop.animate().cancel();
+            fyBackdrop.animate().alpha(1f).setDuration(animations ? 300 : 0).start();
+            return;
+        }
+        Bitmap blurred = fyBackdropCache.get(key);
+        if (blurred == null) {
+            ImageView picture = card.findViewById(R.id.fyArt);
+            Drawable d = picture != null ? picture.getDrawable() : null;
+            if (!(d instanceof BitmapDrawable)) return;   // artwork not downloaded yet: keep what is shown
+            blurred = ForYouBackdrop.from(d);
+            if (blurred == null) return;
+            fyBackdropCache.put(key, blurred);
+        }
+        fyBackdropKey = key;
+        final Bitmap next = blurred;
+        fyBackdrop.setVisibility(View.VISIBLE);
+        fyBackdrop.animate().cancel();
+        if (!animations || reducedMotion || fyBackdrop.getAlpha() == 0f) {
+            fyBackdrop.setImageBitmap(next);
+            fyBackdrop.animate().alpha(1f).setDuration(animations ? 450 : 0).start();
+            return;
+        }
+        fyBackdrop.animate().alpha(0.35f).setDuration(120).withEndAction(() -> {
+            fyBackdrop.setImageBitmap(next);
+            fyBackdrop.animate().alpha(1f).setDuration(320).start();
+        }).start();
+    }
+
+    private void hideForYouBackdrop() {
+        if (fyBackdrop == null || fyBackdrop.getAlpha() == 0f) return;
+        fyBackdrop.animate().cancel();
+        fyBackdrop.animate().alpha(0f).setDuration(animations ? 400 : 0).start();
     }
 
     private int colorForPackage(String pkg) {

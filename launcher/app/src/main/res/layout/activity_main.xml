@@ -23,6 +23,17 @@
         android:visibility="gone"
         android:importantForAccessibility="no" />
 
+    <!-- Local change (not upstream): the focused For You card's artwork, blurred and darkened (MainActivity). -->
+    <ImageView
+        android:id="@+id/fyBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+
     <!-- Ambient glow in the colour of the focused dock app. -->
     <View
         android:id="@+id/ambient"
