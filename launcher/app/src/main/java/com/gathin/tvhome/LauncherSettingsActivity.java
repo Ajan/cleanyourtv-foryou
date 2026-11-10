@@ -42,6 +42,9 @@ public final class LauncherSettingsActivity extends Activity {
     /** Local change: Android's screensaver delay (Settings.System.SCREEN_OFF_TIMEOUT), in minutes. */
     private static final int[] SCREENSAVER_MINUTES = {1, 5, 10, 15, 30};
     private TextView screensaverChoice;
+    /** Local change: the key helper's key filtering (remote app buttons on, or a held volume key that ramps). */
+    private TextView remoteButtonsChoice;
+    private boolean keyFilter;
     private int columns;
     private int rowsBelowDock;
     private int dockOpacity;
@@ -65,6 +68,7 @@ public final class LauncherSettingsActivity extends Activity {
         rowsBelowDock = config.rowsBelowDock;
         dockOpacity = config.dockOpacity;
         clockFormat = config.clockFormat;
+        keyFilter = config.keyFilter;
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
 
@@ -157,6 +161,16 @@ public final class LauncherSettingsActivity extends Activity {
         }
         screensaverChoice = findViewById(R.id.screensaverChoice);
         screensaverChoice.setOnClickListener(v -> showScreensaverPicker());
+        remoteButtonsChoice = findViewById(R.id.remoteButtonsChoice);
+        // Only while the key helper runs (INPUT_KEY_SERVICE=1): without it the row would change nothing.
+        remoteButtonsChoice.setVisibility(InputKeyService.running != null ? View.VISIBLE : View.GONE);
+        remoteButtonsChoice.setOnClickListener(v -> {
+            keyFilter = !keyFilter;
+            choices.edit().putBoolean(Config.KEY_FILTER_KEY, keyFilter).apply();
+            InputKeyService helper = InputKeyService.running;
+            if (helper != null) helper.setKeyFilter(keyFilter);
+            refresh();
+        });
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
@@ -364,6 +378,8 @@ public final class LauncherSettingsActivity extends Activity {
                         : getString(R.string.wallpaper_theme_default)));
         openOnStartChoice.setText(getString(R.string.open_on_start_state, openOnStartLabel()));
         screensaverChoice.setText(getString(R.string.screensaver_after_state, screensaverLabel()));
+        remoteButtonsChoice.setText(getString(R.string.remote_buttons_state,
+                getString(keyFilter ? R.string.remote_buttons_on : R.string.remote_buttons_off)));
         followThemeChoice.setSelected(!hasOnTvChoices());
     }
 

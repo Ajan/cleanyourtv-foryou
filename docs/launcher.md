@@ -58,6 +58,9 @@ The launcher's own page has these rows, top to bottom:
   clocks (Home and the clock screensaver) to that, whatever the TV uses (`clock_format` in a theme).
 - **Screensaver starts after** (this variant, see [VARIANT.md](../VARIANT.md)): 1, 5, 10, 15 or 30 minutes,
   written to Android's screensaver delay; needs `WRITE_SETTINGS` (`variant-install.sh` grants it).
+- **Remote app buttons** (this variant, shown only with `INPUT_KEY_SERVICE=1`): **On** keeps the remote's app
+  buttons working; **Off** stops the key helper filtering keys, so a held volume key ramps again on TVs that
+  drop key repeats while a service filters keys (`key_filter`), and the app buttons do nothing.
 - **Wallpaper**: one picture from the theme's collection (or its `wallpaper.jpg`), **None**, or **Theme
   default**. A pick holds that picture and stops the rotation until you choose Theme default, press
   Follow theme, or push the theme again.

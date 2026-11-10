@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -91,6 +92,19 @@ public class InputKeyService extends AccessibilityService {
             gamepads = new GamepadPassthrough(this);
             gamepads.start();
         }
+    }
+
+    /**
+     * Local change (not upstream): Launcher settings' Remote app buttons row, applied at once. Off drops key
+     * filtering, so a held volume key ramps again on firmware that stops repeats while a service filters keys
+     * (Sony BRAVIA VU31: Volume + held 3 s went 22 -> 39); the app buttons then do nothing. On filters again.
+     */
+    void setKeyFilter(boolean on) {
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) return;
+        if (on) info.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        else info.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+        setServiceInfo(info);
     }
 
     private boolean isInputKey(int keyCode) {

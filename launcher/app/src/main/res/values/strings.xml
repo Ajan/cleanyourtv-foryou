@@ -162,6 +162,9 @@
     <string name="screensaver_after_label" translatable="false">Screensaver starts after</string>
     <string name="screensaver_after_state" translatable="false">Screensaver starts after: %1$s</string>
     <string name="screensaver_minutes" translatable="false">%1$d min</string>
+    <string name="remote_buttons_state" translatable="false">Remote app buttons: %1$s</string>
+    <string name="remote_buttons_on" translatable="false">On (volume moves one step per press)</string>
+    <string name="remote_buttons_off" translatable="false">Off (hold volume to ramp)</string>
     <string name="screensaver_not_allowed" translatable="false">Not allowed: grant WRITE_SETTINGS over ADB (see README)</string>
     <!-- game_day: a game on now, in the race panel. -->
     <string name="game_live">Live now</string>

@@ -19,6 +19,7 @@ haven't been tried.
 | **Screensaver starts after** | A row in Launcher settings (hold OK on the gear → Launcher settings): 1, 5, 10, 15 or 30 minutes. Google TV has no on-screen setting for this. | remove the row's code, or just don't use it |
 | **Update bell** in the top bar | A round bell, styled like the other top buttons, appears left of Inputs only while the Play Store has app updates waiting (with the stock launcher disabled nothing else shows them). OK opens them in the Play Store. | `update_bell` false in `config.xml` |
 | **Private DNS shield** in the top bar | Only when Private DNS is in strict mode (for example `dns.adguard-dns.com`): a round shield left of the network pill. **Green**: a fresh name lookup answers. **Amber**: still waiting. In strict mode lookups hang for about a minute after the TV wakes from standby (measured on the test TV), and an app opened then can stay on "Can't connect" until it is force-stopped. **Red**: no answer for two minutes. Status only: focus skips it. Hidden with Private DNS off or automatic. | `dns_shield` false in `config.xml` |
+| **Remote app buttons** row in Launcher settings | **On**: the remote's YouTube, Netflix, Prime Video and Settings buttons work, and a held volume key moves one step per press (Sony drops key repeats while the helper filters keys). **Off**: holding volume ramps again (on the test TV, Volume + held 3 s went 22 to 39), and those buttons do nothing. Takes effect at once; a theme push resets it to `key_filter`. | don't use it; `key_filter` sets the default |
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
 
@@ -57,7 +58,7 @@ The original launcher has no network access and no extra permissions, by design.
 
 - Opening a card needs the app to publish a link; every entry on the test TV did.
 - Artwork needs internet; without it the cards show the app's name on its colour.
-- On the test TV, holding volume moves one step per press while the remote helper is on: the key-repeat trade in
+- On the test TV, holding volume moves one step per press while the remote helper filters keys (switch it with the Remote app buttons row): the key-repeat trade in
   [docs/devices/tcl-55p71b-g09-key-repeat.md](docs/devices/tcl-55p71b-g09-key-repeat.md).
 
 - With Private DNS in strict mode, give the TV a moment after waking: the shield turns green when lookups work.
