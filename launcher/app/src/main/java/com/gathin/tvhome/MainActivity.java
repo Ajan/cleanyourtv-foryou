@@ -177,6 +177,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView btnUpdates;
     private boolean updateBellOn;
     private final Runnable updateBellListener = this::refreshUpdateBell;
+    /** Local change (not upstream): the Private DNS shield; null when dns_shield is off. */
+    private DnsShield dnsShield;
     private View forYou;
     private TextView fyTabContinue, fyTabPopular, fyTitle, fyMeta;
     private RecyclerView fyRow;
@@ -767,6 +769,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             btnUpdates.setOnClickListener(v -> openAppUpdates());
             AppUpdates.setListener(updateBellListener);
         }
+        if (getResources().getBoolean(R.bool.dns_shield) && !cfg.topMenu && DnsShield.supported()) {
+            dnsShield = new DnsShield(this, findViewById(R.id.btnDns));
+            dnsShield.start();
+        }
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
@@ -992,6 +998,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         promptsPaused = false;
         forYouResume();
         refreshUpdateBell();
+        if (dnsShield != null) dnsShield.resume();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
         switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
             case REBUILD:
@@ -1190,6 +1197,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         forYouPause();
+        if (dnsShield != null) dnsShield.pause();
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
@@ -1254,6 +1262,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onDestroy() {
         super.onDestroy();
         AppUpdates.clearListener(updateBellListener);
+        if (dnsShield != null) dnsShield.stop();
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -2745,7 +2754,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ViewGroup bar = findViewById(R.id.topButtons);
         for (int i = 0; i < bar.getChildCount(); i++) {
             View button = bar.getChildAt(i);
-            if (button != btnInputs && button.getVisibility() == View.VISIBLE) return button;
+            if (button != btnInputs && button.getVisibility() == View.VISIBLE && button.isFocusable()) return button;
         }
         return findViewById(R.id.btnSettings);
     }

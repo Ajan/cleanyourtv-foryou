@@ -338,6 +338,15 @@
                     android:drawableStart="@drawable/ic_input"
                     android:nextFocusDown="@+id/grid" />
 
+                <!-- Local change (not upstream): Private DNS status (DnsShield); not focusable. -->
+                <TextView
+                    android:id="@+id/btnDns"
+                    style="@style/TopButtonIcon"
+                    android:visibility="gone"
+                    android:focusable="false"
+                    android:contentDescription="@string/dns_shield_checking"
+                    android:drawableStart="@drawable/ic_shield" />
+
                 <TextView
                     android:id="@+id/btnWifi"
                     style="@style/TopButton"

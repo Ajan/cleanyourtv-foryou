@@ -373,6 +373,11 @@
     <!-- Local change (not upstream): a bell in the top bar while the Play Store has app updates waiting (OK opens
          them). Needs notification access: variant-install.sh grants it. false: off. -->
     <bool name="update_bell">true</bool>
+    <!-- Local change (not upstream): a shield left of the network pill while Private DNS is in strict mode (e.g.
+         dns.adguard-dns.com). Green: a fresh lookup answers. Amber: waiting, as for about a minute after waking
+         from standby, when apps opened then cannot connect. Red: no answer for two minutes. Status only, no
+         focus; hidden when Private DNS is off or automatic. false: off. -->
+    <bool name="dns_shield">true</bool>
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->

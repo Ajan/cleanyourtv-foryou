@@ -14,6 +14,7 @@ haven't been tried.
 | **For You** row above the dock | Two tabs, **Continue** and **Popular**, filled only from your **dock apps** (see below). OK opens that exact title or episode in its app. The big app name above the dock (`dock_title`) is off to make room. It shows with **0 rows below the dock**; with 1 to 3 rows (Launcher settings) the dock rises and the row hides itself rather than cover the clock and the top buttons. | `for_you` false (and `dock_title` true) in `config.xml` |
 | **Screensaver starts after** | A row in Launcher settings (hold OK on the gear → Launcher settings): 1, 5, 10, 15 or 30 minutes. Google TV has no on-screen setting for this. | remove the row's code, or just don't use it |
 | **Update bell** in the top bar | A round bell, styled like the other top buttons, appears left of Inputs only while the Play Store has app updates waiting (with the stock launcher disabled nothing else shows them). OK opens them in the Play Store. | `update_bell` false in `config.xml` |
+| **Private DNS shield** in the top bar | Only when Private DNS is in strict mode (for example `dns.adguard-dns.com`): a round shield left of the network pill. **Green**: a fresh name lookup answers. **Amber**: still waiting. In strict mode lookups hang for about a minute after the TV wakes from standby (measured on the test TV), and an app opened then can stay on "Can't connect" until it is force-stopped. **Red**: no answer for two minutes. Status only: focus skips it. Hidden with Private DNS off or automatic. | `dns_shield` false in `config.xml` |
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
 
@@ -55,6 +56,9 @@ The original launcher has no network access and no extra permissions, by design.
 - On the test TV, holding volume moves one step per press while the remote helper is on: the key-repeat trade in
   [docs/devices/tcl-55p71b-g09-key-repeat.md](docs/devices/tcl-55p71b-g09-key-repeat.md).
 
+- With Private DNS in strict mode, give the TV a moment after waking: the shield turns green when lookups work.
+  If an app was opened too early and says it can't connect, force-stop it (Settings → Apps) instead of restarting.
+
 ## Staying up to date with CleanYourTV
 
 This repository keeps CleanYourTV's full history. To bring in its updates:
@@ -66,7 +70,7 @@ git merge upstream/main          # resolve any conflicts in the launcher files, 
 ```
 
 The changed code is marked `Local change (not upstream)`: `ForYou.java`, `ArtCache.java`, `ForYouAdapter.java`,
-`AppUpdates.java`, `UpdateWatchService.java`, `ic_bell.xml`,
+`AppUpdates.java`, `UpdateWatchService.java`, `ic_bell.xml`, `DnsShield.java`, `ic_shield.xml`,
 `item_foryou.xml`, and sections of `MainActivity.java`, `InputKeyService.java` and `LauncherSettingsActivity.java`.
 
 ## Credits and licence
