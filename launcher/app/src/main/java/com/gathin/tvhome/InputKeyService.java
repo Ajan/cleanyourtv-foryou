@@ -30,6 +30,9 @@ public class InputKeyService extends AccessibilityService {
     private Map<Integer, String> appScancodes = Collections.emptyMap();
     private Map<Integer, String> holdAppKeys = Collections.emptyMap();
     private Map<Integer, String> holdAppScancodes = Collections.emptyMap();
+    /** app_keys "front:" entries, chosen the way HomeKeyService chooses them (RemoteKeys.tap). */
+    private Map<Integer, String> frontAppKeys = Collections.emptyMap();
+    private Map<Integer, String> frontAppScancodes = Collections.emptyMap();
     /** restore_key_services was on when the config was read: this helper is noted for ServiceRepair. */
     private boolean repairRecord;
     /** consume_volume_keys: Volume Up/Down go to VolumeKeys instead of on to the firmware. */
@@ -47,10 +50,13 @@ public class InputKeyService extends AccessibilityService {
     private volatile boolean openWhenAwake;
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private BroadcastReceiver dreamReceiver;
+    /** The bound helper, for global actions Home's own key path asks for (RemoteKeys). */
+    static InputKeyService running;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        running = this;
         // From config.xml or a theme's config.json; theme.sh rebinds this service after a push.
         Config config = Config.load(this);
         // restore_key_services: note that this helper runs, so Home can put it back after a force stop.
@@ -63,7 +69,8 @@ public class InputKeyService extends AccessibilityService {
         RemoteKeys.applyKeyFilter(this, config.keyFilter);
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
         holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
-        // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
+        frontAppKeys = RemoteKeys.parseFrontAppKeys(config.appKeys);
+        frontAppScancodes = RemoteKeys.parseFrontAppScancodes(config.appKeys);
         String down = getString(R.string.dream_down_component).trim();
         dreamDown = down.isEmpty() ? null : ComponentName.unflattenFromString(down);
         if (dreamDown != null && dreamReceiver == null) {
@@ -79,6 +86,7 @@ public class InputKeyService extends AccessibilityService {
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(dreamReceiver, filter, Context.RECEIVER_EXPORTED);
             else registerReceiver(dreamReceiver, filter);
         }
+        // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
         if (config.gamepadPassthrough && config.keyFilter && gamepads == null) {
             gamepads = new GamepadPassthrough(this);
             gamepads.start();
@@ -106,9 +114,11 @@ public class InputKeyService extends AccessibilityService {
         }
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
         // A scancode entry is more specific than any keycode, so it goes first.
-        if (RemoteKeys.handle(this, event, appScancodes.get(event.getScanCode()),
+        if (RemoteKeys.handle(this, event, RemoteKeys.tap(appScancodes.get(event.getScanCode()),
+                frontAppScancodes.get(event.getScanCode())),
                 holdAppScancodes.get(event.getScanCode()))) return true;
-        if (RemoteKeys.handle(this, event, appKeys.get(event.getKeyCode()),
+        if (RemoteKeys.handle(this, event, RemoteKeys.tap(appKeys.get(event.getKeyCode()),
+                frontAppKeys.get(event.getKeyCode())),
                 holdAppKeys.get(event.getKeyCode()))) return true;
         if (!isInputKey(event.getKeyCode())) return false;
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
@@ -134,6 +144,7 @@ public class InputKeyService extends AccessibilityService {
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */
     @Override
     public boolean onUnbind(Intent intent) {
+        RemoteKeys.release(this);
         if (repairRecord) ServiceRepair.disconnected(this, getClass());
         return super.onUnbind(intent);
     }
@@ -147,6 +158,8 @@ public class InputKeyService extends AccessibilityService {
             }
             dreamReceiver = null;
         }
+        if (running == this) running = null;
+        RemoteKeys.release(this);
         if (gamepads != null) gamepads.stop();
         if (consumeVolumeKeys) VolumeKeys.stop();
         super.onDestroy();
