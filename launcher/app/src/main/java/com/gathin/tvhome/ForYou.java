@@ -99,6 +99,7 @@ final class ForYou {
     static List<Item> loadContinue(Context c, List<String> dock) {
         boolean redesign = Redesign.on(c);
         List<Item> out = new ArrayList<>();
+        if (TestSwitches.emptyContinue(c)) return out;   // debug builds only (src/debug); never true in a release
         Set<String> dockSet = new HashSet<>(dock);
         Map<String, String> labels = new HashMap<>();
         String[] cols = {

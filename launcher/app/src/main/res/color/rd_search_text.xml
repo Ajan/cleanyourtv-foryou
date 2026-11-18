@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream), redesign: the Search pill's text and icon. Dark on white when focused, else white 75%. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/rd_on_focus" />
+    <item android:color="@color/rd_search_rest" />
+</selector>

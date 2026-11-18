@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream), redesign: the Search pill beside the tab capsule (RedesignHome sizes it). -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rdSearch"
+    android:layout_width="wrap_content"
+    android:layout_height="@dimen/rd_search_h"
+    android:layout_marginStart="@dimen/rd_search_gap"
+    android:layout_gravity="center_vertical"
+    android:gravity="center_vertical"
+    android:paddingStart="@dimen/rd_search_pad_l"
+    android:paddingEnd="@dimen/rd_search_pad_r"
+    android:background="@drawable/rd_search_bg"
+    android:drawableStart="@drawable/rd_ic_search"
+    android:drawablePadding="@dimen/rd_search_icon_gap"
+    android:drawableTint="@color/rd_search_text"
+    android:textColor="@color/rd_search_text"
+    android:textSize="@dimen/rd_search_text"
+    android:includeFontPadding="false"
+    android:singleLine="true"
+    android:focusable="true"
+    android:clickable="true"
+    android:text="@string/rd_search" />

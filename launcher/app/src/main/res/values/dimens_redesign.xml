@@ -51,4 +51,17 @@
     <dimen name="rd_peek">24dp</dimen>                 <!-- 48 px of the second row -->
     <!-- Motion -->
     <dimen name="rd_bounce">16dp</dimen>               <!-- 32 px edge bounce -->
+
+    <!-- Search pill, beside the Continue / Popular capsule (RedesignHome). -->
+    <dimen name="rd_search_h">35dp</dimen>             <!-- 70 px, matched to the capsule at run time -->
+    <dimen name="rd_search_gap">8dp</dimen>            <!-- 16 px from the capsule -->
+    <dimen name="rd_search_pad_l">13dp</dimen>         <!-- 26 px -->
+    <dimen name="rd_search_pad_r">16dp</dimen>         <!-- 32 px -->
+    <dimen name="rd_search_icon">15dp</dimen>          <!-- 30 px magnifier -->
+    <dimen name="rd_search_icon_gap">6dp</dimen>       <!-- 12 px -->
+    <dimen name="rd_search_text">14sp</dimen>          <!-- 28 px -->
+    <dimen name="rd_search_lift">3dp</dimen>           <!-- the soft shadow while focused -->
+    <item name="rd_search_focus_scale" format="float" type="dimen">1.06</item>
+    <!-- "Nothing to continue", where the row would be. -->
+    <dimen name="rd_empty_text">14sp</dimen>           <!-- 28 px -->
 </resources>

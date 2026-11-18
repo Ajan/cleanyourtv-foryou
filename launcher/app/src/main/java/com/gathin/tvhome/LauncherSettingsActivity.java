@@ -173,6 +173,8 @@ public final class LauncherSettingsActivity extends Activity {
             if (!keyFilter) Toast.makeText(this, R.string.remote_buttons_off_toast, Toast.LENGTH_LONG).show();
             refresh();
         });
+        // Local change (not upstream): the redesign's own rows (name, greeting, Popular tab), from RedesignSettings.
+        if (Redesign.on(this)) RedesignSettings.addRows(this, remoteButtonsChoice);
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;

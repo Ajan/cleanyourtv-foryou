@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Local change (not upstream): strings for the home redesign's own controls. English only, like the variant. -->
+<resources>
+    <string name="rd_search" translatable="false">Search</string>
+    <string name="rd_nothing_to_continue" translatable="false">Nothing to continue</string>
+    <string name="rd_name_state" translatable="false">Your name: %1$s</string>
+    <string name="rd_name_none" translatable="false">Not set</string>
+    <string name="rd_name_title" translatable="false">Your name</string>
+    <string name="rd_name_message" translatable="false">Shown after the greeting, as in "Good night, Alex". Leave it empty for no name.</string>
+    <string name="rd_name_save" translatable="false">Save</string>
+    <string name="rd_show_greeting_state" translatable="false">Show greeting: %1$s</string>
+    <string name="rd_show_popular_state" translatable="false">Show Popular tab: %1$s</string>
+</resources>

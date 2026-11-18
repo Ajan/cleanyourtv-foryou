@@ -15,4 +15,7 @@
     <color name="rd_dock">#14FFFFFF</color>           <!-- white 8% -->
     <color name="rd_dock_edge">#29FFFFFF</color>      <!-- white 16% -->
     <color name="rd_scrim">#FF080405</color>          <!-- rgba(8,4,5) for the backdrop gradients -->
+    <color name="rd_search_fill">#1AFFFFFF</color>      <!-- white 10% -->
+    <color name="rd_search_rest">#BFFFFFFF</color>      <!-- white 75% -->
+    <color name="rd_empty">#99FFFFFF</color>            <!-- white 60% -->
 </resources>

@@ -145,6 +145,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private AppAdapter adapter;
     private RecyclerView grid;
     private FrameLayout root;
+    /** Local change, redesign: the Search pill, the tab capsule's visibility and the empty-row line (RedesignHome). */
+    private RedesignHome rdHome;
+    /** A theme's show_greeting; off, the greeting stays gone whatever Launcher settings say. */
+    private boolean themeShowsGreeting = true;
     private WallpaperPlayer wallpaperPlayer;
     private GlassView glass;
     private View ambient;
@@ -607,6 +611,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         clockRefresh = new ClockRefresh(clockBlock);
         greetingColor = greeting.getCurrentTextColor();
         if (!cfg.showGreeting) greeting.setVisibility(View.GONE);
+        themeShowsGreeting = cfg.showGreeting;
         // Keep the other header layouts as designed: their extra lines change the block's centre.
         if (!cfg.showGreeting && !cfg.dateBelowClock && !cfg.shamsiDate && !cfg.lunarDate
                 && !cfg.topMenu && !getResources().getBoolean(R.bool.rtl_menu_bar)) {
@@ -997,7 +1002,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 // Back to the dock tile Up came from, not wherever the focus finder lands.
-                if (forYouUsable()) currentTab().requestFocus();
+                if (forYouUsable()) forYouTop().requestFocus();
+                else if (rdHome != null && rdHome.emptyShown() && rdHome.search() != null) rdHome.search().requestFocus();
                 else focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
@@ -1231,6 +1237,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 break;
         }
         if (openLiveTvAfterBoot()) return;
+        if (redesign && themeShowsGreeting) {
+            // Launcher settings' Show greeting: INVISIBLE, so the clock and the date keep their places.
+            greeting.setVisibility(RedesignSettings.showGreeting(this) ? View.VISIBLE : View.INVISIBLE);
+        }
         updateGreeting();
         updatePanel();
         // Back from an app opened from its tile, focus is still on that tile, so the cinematic "Last opened" line kept
@@ -1502,6 +1512,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (redesign && fyTitle != null) {
             if (isInside(newF, grid)) fadeForYouText(false);
             else if (isInside(newF, fyRow)) fadeForYouText(true);
+            else if (rdHome != null && rdHome.isSearch(newF)) fadeForYouText(false);   // as with the dock
+            else if (newF == fyTabContinue || newF == fyTabPopular) fadeForYouText(true);
         }
     };
 
@@ -1903,6 +1915,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // dock or the rows below goes up to the row.
         if (redesign && forYouOn) {
             View f = getCurrentFocus();
+            if (rdHome != null && rdHome.isSearch(f)) {
+                if (!currentForYouItems().isEmpty()) focusForYouCard();
+                return;
+            }
             if (isInside(f, fyRow)) {
                 ((FadeRow) fyRow).slideToStart();
                 return;
@@ -2429,7 +2445,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public boolean onCardKey(int position, int keyCode) {
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_DPAD_UP:
-                        currentTab().requestFocus();
+                        forYouTop().requestFocus();
                         return true;
                     case KeyEvent.KEYCODE_DPAD_DOWN:
                         focusTile(fyDockReturn);
@@ -2457,6 +2473,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             forYou.setPadding(0, forYou.getPaddingTop(), 0, forYou.getPaddingBottom());
             ((FadeRow) fyRow).anchor(line - Redesign.px(this, R.dimen.rd_card_gap) / 2, Redesign.px(this, R.dimen.rd_fade));
             Redesign.styleTabs(fyTabContinue, fyTabPopular);
+            rdHome = new RedesignHome(this, (View) fyTabContinue.getParent(), root, new RedesignHome.Actions() {
+                @Override
+                public void left() {
+                    if (!rdHome.capsuleShown()) return;
+                    (fyTabPopular.getVisibility() == View.VISIBLE ? fyTabPopular : fyTabContinue).requestFocus();
+                }
+
+                @Override
+                public void down() {
+                    if (!currentForYouItems().isEmpty() && fyShown && !fyNoRoom) focusForYouCard();
+                    else focusTile(fyDockReturn);
+                }
+
+                @Override
+                public void up() {
+                    (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+                }
+            });
             Redesign.text(fyTitle, R.dimen.rd_title, 600, 0, 0f);
             fyTitle.setSingleLine(true);
             fyTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -2497,6 +2531,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     if (v == fyTabContinue && fyTabPopular.getVisibility() == View.VISIBLE) fyTabPopular.requestFocus();
+                    else if (rdHome != null && rdHome.search() != null) rdHome.search().requestFocus();
                     return true;
                 default:
                     return false;
@@ -2516,6 +2551,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private TextView currentTab() {
         return fyPopularTab ? fyTabPopular : fyTabContinue;
+    }
+
+    /** What Up from the row (or Down from the top bar) lands on: the shown tab, or Search when the tabs are hidden. */
+    private View forYouTop() {
+        if (rdHome != null && !rdHome.capsuleShown() && rdHome.search() != null) return rdHome.search();
+        return currentTab();
     }
 
     private List<ForYou.Item> currentForYouItems() {
@@ -2670,7 +2711,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void placeForYou(float dockTopInRoot) {
         if (!forYouOn) return;
         fyDockTop = dockTopInRoot;
-        if (fyContinue.isEmpty() && fyPopular.isEmpty()) return;
+        boolean emptyRow = rdHome != null && !RedesignSettings.showPopular(this);
+        if (fyContinue.isEmpty() && fyPopular.isEmpty() && !emptyRow) return;
         if (forYou.getHeight() == 0) {
             forYou.setVisibility(View.VISIBLE);
             forYou.post(() -> { if (fyDockActive) placeForYou(fyDockTop); });
@@ -2713,6 +2755,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float height = (tabs + rowPx / density + (title ? fyTitleDp : 0) + (meta ? fyMetaDp : 0)) * density;
         forYou.setY(redesign ? top : Math.max(top, bottom - height));   // redesign: anchored under the header
         forYou.setVisibility(View.VISIBLE);
+        if (rdHome != null && rdHome.emptyShown()) rdHome.placeEmpty(forYou, fyRow);
         if (!fyShown) {
             fyShown = true;
             if (animations && !reducedMotion) forYou.animate().alpha(1f).setDuration(220).start();
@@ -2749,9 +2792,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (redesign) {
             c = withoutHidden(c);
             p = withoutHidden(p);
+            // Launcher settings' Show Popular tab, off: Continue only (RedesignHome hides the capsule).
+            if (!RedesignSettings.showPopular(this)) p = java.util.Collections.emptyList();
         }
         if (redesign && fyRow.hasFocus()) {
             applyForYouKeepingFocus(c, p);
+            applyRedesignState();
             openForYouGate();
             return;
         }
@@ -2767,9 +2813,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean popular = c.isEmpty();   // Home opens on Continue whenever it has something
         fyAdapter.setItems(java.util.Collections.emptyList());
         selectForYouTab(popular);
-        if (c.isEmpty() && p.isEmpty()) hideForYou();
+        boolean emptyRow = rdHome != null && !RedesignSettings.showPopular(this);   // "Nothing to continue"
+        if (c.isEmpty() && p.isEmpty() && !emptyRow) hideForYou();
         else if (fyDockActive && fyDockTop >= 0) placeForYou(fyDockTop);
-        if (redesign) openForYouGate();
+        if (redesign) {
+            applyRedesignState();
+            openForYouGate();
+        }
+    }
+
+    /**
+     * Redesign: the tab capsule shown with Popular on (fading over 150 ms once Home is on screen), and with it off
+     * and nothing in progress, "Nothing to continue" where the row would be and Search as the row's one stop.
+     */
+    private void applyRedesignState() {
+        if (rdHome == null) return;
+        boolean popularOn = RedesignSettings.showPopular(this);
+        rdHome.setCapsuleShown(popularOn, fyShown && animations);
+        boolean empty = !popularOn && fyContinue.isEmpty();
+        rdHome.showEmpty(empty);
+        if (empty) {
+            fyTitle.setText("");
+            fyMeta.setText("");
+            rdHome.placeEmpty(forYou, fyRow);
+            View search = rdHome.search();
+            if (search != null && (fyRow.hasFocus() || getCurrentFocus() == null)) search.requestFocus();
+        }
     }
 
     /**
@@ -3010,6 +3079,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         @Override
         public void run() {
             if (!fyWantFirstCard) return;
+            if (fyShown && rdHome != null && rdHome.emptyShown() && rdHome.search() != null) {
+                fyWantFirstCard = false;
+                rdHome.search().requestFocus();   // Popular hidden and nothing in progress: focus starts on Search
+                return;
+            }
             if (fyShown && !fyNoRoom && !(fyContinue.isEmpty() && fyPopular.isEmpty())) {
                 fyWantFirstCard = false;
                 boolean popular = fyContinue.isEmpty();
@@ -3479,6 +3553,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     focusForYouCard();
                     return true;
                 }
+                if (rdHome != null && rdHome.emptyShown() && rdHome.search() != null) {
+                    fyDockReturn = position;
+                    rdHome.search().requestFocus();   // nothing to continue: Search is the row's one stop
+                    return true;
+                }
                 return false;          // dock row: let focus move to the top bar
             }
             target = position - COLUMNS;
@@ -3787,8 +3866,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             greeting.setText(festiveGreeting);
             greeting.setTextColor(liftTowardsWhite(festival.accentColor(), 0.25f));
         } else {
-            greeting.setText(greetingName.isEmpty() ? getString(res)
-                    : getString(R.string.greeting_with_name, getString(res), greetingName));
+            // Local change, redesign: the name from Launcher settings, once one was saved (empty: no name).
+            String name = greetingName;
+            if (redesign) {
+                String saved = RedesignSettings.name(this);
+                if (saved != null) name = saved;
+            }
+            greeting.setText(name.isEmpty() ? getString(res)
+                    : getString(R.string.greeting_with_name, getString(res), name));
             greeting.setTextColor(greetingColor);
         }
         if (shamsi) shamsiDate.setText(Shamsi.today(getResources()));
