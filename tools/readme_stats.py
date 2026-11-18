@@ -1,10 +1,10 @@
 """Renders the stat strip (docs/stats.png), the top part of the README card.
 
-Update STATS, then: python3 tools/readme_stats.py Fredoka.ttf docs/stats.png
+Update STATS, then: tools/venv/bin/python -I tools/readme_stats.py Fredoka.ttf docs/stats.png
 and rebuild the card with tools/readme_card.py.
-python3 tools/readme_stats.py --halloween Fredoka.ttf docs/stats-halloween.png draws the October strip for
-tools/readme_card.py --halloween: the same STATS in pumpkin orange. Fredoka is the variable TTF from
-Google Fonts, and its file is not in this repo: download it and pass the path of the copy you saved.
+tools/venv/bin/python -I tools/readme_stats.py --halloween Fredoka.ttf docs/stats-halloween.png draws the
+October strip for tools/readme_card.py --halloween: the same STATS in pumpkin orange. Fredoka is the variable
+TTF from Google Fonts, and its file is not in this repo: download it and pass the path of the copy you saved.
 """
 import os
 import sys
@@ -16,6 +16,13 @@ USAGE = ("usage: readme_stats.py [--halloween] <font.ttf> <out.png>\n"
          "  Fredoka, the variable TTF from Google Fonts, is not in this repo: download it and pass the\n"
          "  path of the file you saved.")
 
+# A reader asking what the script does, answered the way the rest of tools/ answers it (tv.py, privacy.py,
+# blocky_wallpapers.py): this file's own note on stdout and 0. Without this branch the word was read as the
+# font - the usage line went to stderr and the run returned 1, the status this file gives a run that wrote
+# nothing - so `tools/readme_stats.py --help | less` showed nothing, and `--help && ...` looked like a
+# failed run.
+HELP = ("-h", "--help")
+
 
 def font_and_out(argv):
     """The font and the picture, or a usage line that says where the font comes from.
@@ -25,6 +32,9 @@ def font_and_out(argv):
     it wanted nor where to get it.
     """
     argv = [a for a in argv if a != "--halloween"]
+    if any(word in HELP for word in argv[1:]):
+        print((__doc__ or USAGE).strip())
+        sys.exit(0)
     if len(argv) != 3:
         sys.exit(USAGE)
     font, out = argv[1], argv[2]
@@ -84,7 +94,7 @@ try:
 except ImportError:
     sys.exit("readme_stats.py needs Pillow: tools/venv/bin/pip install -r tools/requirements-perf.txt")
 
-STATS = [("463", "TV MODELS"), ("124", "BRANDS"), ("31", "LANGUAGES"), ("572 KB", "LAUNCHER")]
+STATS = [("489", "TV MODELS"), ("132", "BRANDS"), ("31", "LANGUAGES"), ("572 KB", "LAUNCHER")]
 W, H = 1600, 240
 img = Image.new("RGB", (W, H), "#15181e"); d = ImageDraw.Draw(img)
 def f(size, wt):

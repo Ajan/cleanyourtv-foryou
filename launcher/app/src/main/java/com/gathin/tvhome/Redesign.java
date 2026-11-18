@@ -126,6 +126,8 @@ final class Redesign {
         setMarginStart(greeting, 0);
         TextView clock = a.findViewById(R.id.clock);
         text(clock, R.dimen.rd_clock, 300, 0, -0.02f);
+        // Upstream 3.5 gives the clock tabular digits (tnum); the redesign keeps Inter's own digits, as designed.
+        clock.setFontFeatureSettings(null);
         TextView ampm = a.findViewById(R.id.ampm);
         text(ampm, R.dimen.rd_ampm, 500, 0, 0.04f);
         View divider = a.findViewById(R.id.clockDivider);

@@ -20,6 +20,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import stat
 import subprocess
 import sys
@@ -229,7 +230,9 @@ class PrivacyWriteTargetTest(unittest.TestCase):
         result = self.write("lists/privacy.txt")
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
-        self.assertIn("there is no folder lists", result.stderr)
+        # The sentence names the file it runs through: "there is no folder lists" was the answer while
+        # os.path.isdir() read the refusal as an absence, and lists is right there, as a file.
+        self.assertIn("lists is a file, not a folder", result.stderr)
         self.assertNotIn("cannot reach the TV", result.stderr)
         self.assertEqual((self.repo / "lists").read_text(), "not a folder\n")
 
@@ -348,8 +351,10 @@ class PrivacyWriteTargetTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
         self.assertIn(f"wrote 1 packages to {target}", result.stdout)
-        self.assertIn(f"tools/disable.sh {target}", result.stdout)
-        self.assertIn(f"tools/restore.sh {target}", result.stdout)
+        for label, script in (("apply:", "tools/disable.sh"), ("undo:", "tools/restore.sh")):
+            command = next(line.split(":", 1)[1] for line in result.stdout.splitlines()
+                           if line.startswith(label))
+            self.assertEqual(shlex.split(command)[1:], [script, str(target)])
         self.assertEqual(target.read_bytes(), normal.read_bytes())
         self.assertEqual(recovery.read_list(target), [KATNISS])
         ordinary = folder / "ordinary.txt"

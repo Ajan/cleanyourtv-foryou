@@ -1,6 +1,6 @@
 """Renders the Featured in panel (docs/featured.png), the middle part of the README card.
 
-Update LOGOS / MORE, then: python3 tools/readme_featured.py Fredoka.ttf docs/featured.png
+Update LOGOS / MORE, then: tools/venv/bin/python -I tools/readme_featured.py Fredoka.ttf docs/featured.png
 and rebuild the card with tools/readme_card.py. Logos come from docs/press/, at names relative to the
 repository root, so run it from there. Fredoka is the variable TTF from Google Fonts, and its file is not
 in this repo: pass the path of the copy you downloaded.
@@ -15,6 +15,13 @@ USAGE = ("usage: readme_featured.py <font.ttf> <out.png>\n"
          "  Fredoka, the variable TTF from Google Fonts, is not in this repo: download it and pass the\n"
          "  path of the file you saved.")
 
+# A reader asking what the script does, answered the way the rest of tools/ answers it (tv.py, privacy.py,
+# blocky_wallpapers.py): this file's own note on stdout and 0. Without this branch the word was read as the
+# font - the usage line went to stderr and the run returned 1, the status this file gives a run that wrote
+# nothing - so `tools/readme_featured.py --help | less` showed nothing, and `--help && ...` looked like a
+# failed run.
+HELP = ("-h", "--help")
+
 
 def font_and_out(argv):
     """The font and the picture, or a usage line that says where the font comes from.
@@ -23,6 +30,9 @@ def font_and_out(argv):
     the first thing that fails here, and Pillow's `OSError: cannot open resource` names neither the file
     it wanted nor where to get it.
     """
+    if any(word in HELP for word in argv[1:]):
+        print((__doc__ or USAGE).strip())
+        sys.exit(0)
     if len(argv) != 3:
         sys.exit(USAGE)
     font, out = argv[1], argv[2]
@@ -76,7 +86,7 @@ if OUT_PROBLEM:
 
 LOGOS = ["techcrunch", "techradar", "tomsguide", "mashable", "androidauthority", "xda", "flatpanelshd", "itsfoss",
          "phandroid", "gigazine", "xataka", "winfuture", "frandroid", "macitynet", "techaeris", "techpp"]
-MORE = "+518 more  ·  534 articles from 57 countries"
+MORE = "+530 more  ·  546 articles from 57 countries"
 
 
 def logo_problem():

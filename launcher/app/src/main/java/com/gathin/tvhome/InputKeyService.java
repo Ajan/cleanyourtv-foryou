@@ -38,7 +38,7 @@ public class InputKeyService extends AccessibilityService {
     private boolean repairRecord;
     /** consume_volume_keys: Volume Up/Down go to VolumeKeys instead of on to the firmware. */
     private boolean consumeVolumeKeys;
-    /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough and key_filter. */
+    /** Stops key filtering while a game controller is connected or after a volume change; null unless gamepad_passthrough or volume_pauses_filter, and key_filter. */
     private GamepadPassthrough gamepads;
     /**
      * Local change (not upstream): config.xml dream_down_component. While the screensaver runs, Down opens this
@@ -87,11 +87,8 @@ public class InputKeyService extends AccessibilityService {
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(dreamReceiver, filter, Context.RECEIVER_EXPORTED);
             else registerReceiver(dreamReceiver, filter);
         }
-        // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
-        if (config.gamepadPassthrough && config.keyFilter && gamepads == null) {
-            gamepads = new GamepadPassthrough(this);
-            gamepads.start();
-        }
+        // gamepad_passthrough and volume_pauses_filter, off by default.
+        if (gamepads == null) gamepads = GamepadPassthrough.start(this, config);
     }
 
     /**
@@ -138,7 +135,7 @@ public class InputKeyService extends AccessibilityService {
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
             try {
                 startActivity(new Intent(ACTION_VIEW_INPUTS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            } catch (ActivityNotFoundException ignored) {
+            } catch (ActivityNotFoundException | SecurityException ignored) {
             }
         }
         return true;
