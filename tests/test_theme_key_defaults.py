@@ -133,8 +133,9 @@ def problems(root):
 class KeysTableDefaultsTest(unittest.TestCase):
     def test_every_stated_default_is_the_one_config_xml_ships(self):
         # Local change (cleanyourtv-foryou, not upstream): this variant's config.xml turns these on for its test
-        # TV (round icon-only top buttons); the table keeps upstream's defaults, which a theme author follows.
-        variant = ("`icon_only_buttons` ", "`icon_only_inputs` ")
+        # TV (round icon-only top buttons, and volume pausing the key filter); the table keeps upstream's
+        # defaults, which a theme author follows.
+        variant = ("`icon_only_buttons` ", "`icon_only_inputs` ", "`volume_pauses_filter` ")
         found = [p for p in problems(ROOT) if not any(v in p for v in variant)]
         self.assertEqual([], found,
                          "a row's stated default and config.xml disagree; a theme author follows the row")

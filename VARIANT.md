@@ -4,8 +4,8 @@ A variant of [CleanYourTV](https://github.com/Gathin23/cleanyourtv)'s launcher w
 **home redesign** lightly inspired by Apple TV, and a few remote and screensaver fixes for Google TV. The debloat tools, lists and everything else are CleanYourTV's, unchanged:
 start with its [README](README.md) and [PROMPT.md](PROMPT.md).
 
-Tested on a **Sony BRAVIA VU31** (Google TV 14, build UKR1.240726.001, India). Other Google TV sets should work but
-haven't been tried.
+Based on **CleanYourTV 3.5** (launcher 3.5). Tested on a **Sony BRAVIA VU31** (Google TV 14, build UKR1.240726.001,
+India). Other Google TV sets should work but haven't been tried.
 
 ![Home on the Sony BRAVIA VU31 with the redesign: the greeting, clock and date on the left line, four round frosted buttons on the right (Inputs, the green Private DNS shield, Wi-Fi, Settings), the Continue and Popular tabs in one capsule, the first Continue card lifted on the left line with its title and "S3 E5 · JioHotstar · 6 min left" below, a frosted dock of five dimmed app tiles, and the next row peeking in at the bottom, all over the focused card's artwork, heavily blurred and darkened](docs/variant/home.jpg)
 
@@ -23,7 +23,7 @@ with dimmed tiles, and the next row of apps peeking in at the bottom.*
 | **Screensaver starts after** | A row in Launcher settings (hold OK on the gear → Launcher settings): 1, 5, 10, 15 or 30 minutes. Google TV has no on-screen setting for this. | remove the row's code, or just don't use it |
 | **Update bell** in the top bar | A round bell, styled like the other top buttons, appears left of Inputs only while the Play Store has app updates waiting (with the stock launcher disabled nothing else shows them). OK opens them in the Play Store. | `update_bell` false in `config.xml` |
 | **Private DNS shield** in the top bar | Only when Private DNS is in strict mode (for example `dns.adguard-dns.com`): a round shield left of the network pill. **Green**: a fresh name lookup answers. **Amber**: still waiting. In strict mode lookups hang for about a minute after the TV wakes from standby (measured on the test TV), and an app opened then can stay on "Can't connect" until it is force-stopped. **Red**: no answer for two minutes. Status only (focus skips it) unless installed with `DNS_SWITCH=1`: then OK on it offers **Pause for 30 minutes** (AdGuard comes back by itself; the menu shows "Paused until 11:51 PM"), **Turn off** and **Turn on**, and while off it stays as a grey shield. Otherwise hidden with Private DNS off or automatic. | `dns_shield` false in `config.xml` |
-| **Remote app buttons** row in Launcher settings | **On**: the remote's YouTube, Netflix, Prime Video and Settings buttons work, and a held volume key moves one step per press (Sony drops key repeats while the helper filters keys). **Off**: holding volume ramps again (on the test TV, Volume + held 3 s went 22 to 39), and those buttons do nothing. Takes effect at once, and switching it Off shows a short message saying which buttons stop working; a theme push resets it to `key_filter`. | don't use it; `key_filter` sets the default |
+| **Remote app buttons** row in Launcher settings | **On**: the remote's YouTube, Netflix, Prime Video and Settings buttons work. With CleanYourTV 3.5's `volume_pauses_filter` (on in this variant's `config.xml`), a volume change pauses the key filter for 4 s: the first press steps once, then press and hold again to ramp; the app buttons work again 4 s after the last volume change (tested on the test TV). The first press itself can't ramp: Sony drops key repeats while the helper filters keys, and the helper only learns of a volume key once the volume has changed. **Off**: holding volume ramps again (on the test TV, Volume + held 3 s went 22 to 39), and those buttons do nothing. Takes effect at once, and switching it Off shows a short message saying which buttons stop working; a theme push resets it to `key_filter`. | don't use it; `key_filter` sets the default |
 | **Wi-Fi menu** | OK on the Wi-Fi icon opens a small glass menu, like Inputs, instead of going straight to Settings: connected or not, the band (2.4 / 5 GHz), signal strength and whether the internet works, then **Wi-Fi Settings…**. Without Location on, Android hides the network's name and the nearby networks from apps, and no app may switch networks since Android 10, so choosing a network is still done in Wi-Fi Settings. | the pill's long press still opens Wi-Fi settings directly |
 | **Down in the screensaver** | Opens Ambient mode's own *Screensaver settings* panel, as the stock Google TV home did. | `dream_down_component` empty in `config.xml` |
 | Remote buttons (Sony VU31 defaults) | `app_keys`: YouTube (201/202), Netflix (191), Prime Video (189) and the **Settings** button (83), which do nothing once the stock launcher is disabled. | edit `app_keys` for your remote |
@@ -187,8 +187,9 @@ The original launcher has no network access and no extra permissions, by design.
   card).
 - With the redesign, **Remove from Continue** only hides the card on this Home: apps don't let other apps edit their
   Watch Next entries, so the show is still in the app's own list. **Go to show** opens whatever link the app gives.
-- On the test TV, holding volume moves one step per press while the remote helper filters keys (switch it with the Remote app buttons row): the key-repeat trade in
-  [docs/devices/tcl-55p71b-g09-key-repeat.md](docs/devices/tcl-55p71b-g09-key-repeat.md).
+- On the test TV, with the Remote app buttons row On, the first volume press steps once and a second press-and-hold
+  ramps (`volume_pauses_filter`); with the row Off every hold ramps but the app buttons do nothing. The key-repeat
+  trade is described in [docs/devices/tcl-55p71b-g09-key-repeat.md](docs/devices/tcl-55p71b-g09-key-repeat.md).
 
 - With Private DNS in strict mode, give the TV a moment after waking: the shield turns green when lookups work.
   If an app was opened too early and says it can't connect, force-stop it (Settings → Apps) instead of restarting.

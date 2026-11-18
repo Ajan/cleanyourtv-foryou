@@ -151,7 +151,7 @@
          once, a press or hold within those 4 s repeats as usual, and the remote buttons below work again once the
          pause ends. With gamepad_passthrough on too, filtering stays off while a gamepad is connected. A theme can
          set it ("volume_pauses_filter"). -->
-    <bool name="volume_pauses_filter">false</bool>
+    <bool name="volume_pauses_filter">true</bool>
 
     <!-- true: Channel Up/Down do nothing while Home is in front. Unhandled, they open the TV's Live TV app (Sony
          BRAVIA, Android 9: com.sony.dtv.tvx), which is a stray press on a set nobody watches broadcast on. Inside any
